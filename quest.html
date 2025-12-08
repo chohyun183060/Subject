@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KCD2: 임무 일지 (시간 기록)</title>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --paper-main: #e3d2b4;
+            --ink: #2f2723;
+            --ink-faded: #6d5e52;
+            --red-accent: #8b0000;
+            --gold-accent: #c5a059;
+            --success-color: #2e7d32;
+            --fail-color: #b71c1c;
+            --trash-color: #4e342e;
+            
+            --main-color: #8b0000;
+            --side-color: #2f4f4f;
+            --task-color: #5d4037;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: url('https://www.transparenttextures.com/patterns/dark-leather.png');
+            font-family: 'Noto Serif KR', serif;
+            color: var(--ink);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .journal-container { width: 100%; max-width: 800px; position: relative; }
+
+        /* HUD */
+        .hud-panel {
+            display: flex; justify-content: space-between; align-items: center;
+            background-color: #bfa386; border: 2px solid #5c4a30; border-bottom: none;
+            border-radius: 8px 8px 0 0; padding: 10px 20px; margin-bottom: 2px;
+            font-family: 'MedievalSharp', 'Noto Serif KR', serif; color: #3e2723; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .hud-section { display: flex; align-items: center; gap: 12px; }
+        #weatherSection { cursor: pointer; transition: background 0.2s; padding: 5px 10px; border-radius: 5px; }
+        #weatherSection:hover { background-color: rgba(255,255,255,0.3); }
+        .hud-icon { font-size: 1.8rem; }
+        .hud-text { display: flex; flex-direction: column; justify-content: center; }
+        .hud-date { font-size: 0.9rem; font-weight: bold; opacity: 0.9; }
+        .hud-main { font-size: 1.4rem; font-weight: bold; line-height: 1.1; color: var(--red-accent); }
+        .hud-sub { font-size: 0.8rem; opacity: 0.7; font-style: italic; }
+
+        /* TABS */
+        .tabs { display: flex; padding: 0 5px; margin-bottom: -4px; flex-wrap: wrap; gap: 2px; }
+        .tab-btn {
+            flex-grow: 1; font-family: 'MedievalSharp', 'Noto Serif KR', serif; font-size: 1rem;
+            padding: 10px 5px; background-color: #bfa386; border: 2px solid #5c4a30; border-bottom: none;
+            border-radius: 8px 8px 0 0; cursor: pointer; color: rgba(47, 39, 35, 0.6); transition: all 0.2s; min-width: 60px;
+        }
+        .tab-btn:hover { background-color: #d1b496; }
+        .tab-btn.active {
+            background-color: var(--paper-main); color: var(--red-accent); font-weight: bold;
+            padding-bottom: 14px; transform: translateY(-2px); border-top: 4px solid var(--red-accent);
+            z-index: 5; box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+        }
+        .tab-btn[data-tab="main"].active { border-top-color: var(--main-color); color: var(--main-color); }
+        .tab-btn[data-tab="side"].active { border-top-color: var(--side-color); color: var(--side-color); }
+        .tab-btn[data-tab="task"].active { border-top-color: var(--task-color); color: var(--task-color); }
+        .tab-btn[data-tab="completed"].active { border-top-color: var(--success-color); color: var(--success-color); }
+        .tab-btn[data-tab="failed"].active { border-top-color: var(--fail-color); color: var(--fail-color); }
+        .tab-btn[data-tab="trash"].active { border-top-color: var(--trash-color); color: var(--trash-color); background-color: #d7ccc8; }
+        .tab-btn[data-tab="calendar"].active { border-top-color: #3f51b5; color: #3f51b5; }
+
+        /* PARCHMENT */
+        .parchment {
+            background-color: var(--paper-main); width: 100%; min-height: 700px;
+            border: 1px solid #8c7b65; padding: 30px; box-sizing: border-box;
+            border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative; z-index: 1;
+        }
+        .parchment.trash-mode { background-color: #d7ccc8; }
+        h2 { text-align: center; font-family: 'MedievalSharp', 'Noto Serif KR', serif; margin-top: 0; border-bottom: 2px double var(--ink); padding-bottom: 15px; }
+
+        /* INPUT AREA */
+        .input-area { border: 1px solid rgba(0,0,0,0.2); padding: 15px; margin-bottom: 20px; background: rgba(255,255,255,0.2); }
+        .input-area.hidden { display: none; }
+        .input-tools { display: flex; justify-content: flex-end; margin-bottom: 5px; }
+        .tool-btn { background: transparent; border: 1px solid var(--ink); cursor: pointer; font-size: 0.8rem; padding: 2px 8px; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
+        .tool-btn:hover { background: rgba(0,0,0,0.1); }
+
+        input, textarea, select {
+            width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--ink);
+            font-family: 'Noto Serif KR', serif; padding: 8px; box-sizing: border-box; margin-bottom: 10px;
+            outline: none; font-size: 1rem; color: var(--ink);
+        }
+        textarea { height: 80px; resize: vertical; border: 1px dashed rgba(47, 39, 35, 0.3); line-height: 1.5; }
+        input[type="datetime-local"] { font-family: 'MedievalSharp', 'Noto Serif KR', serif; color: var(--red-accent); cursor: pointer; }
+
+        .add-btn { width: 100%; background: var(--ink); color: #dcbfa6; border: 2px solid var(--gold-accent); padding: 10px; font-family: 'MedievalSharp', 'Noto Serif KR', serif; cursor: pointer; }
+        .add-btn:hover { background: var(--red-accent); }
+
+        /* TRASH CONTROLS */
+        .trash-controls {
+            display: none; justify-content: space-between; align-items: center; 
+            padding: 10px 15px; background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); 
+            margin-bottom: 20px; border-radius: 4px;
+        }
+        .trash-controls.show { display: flex; }
+        .trash-btn {
+            font-family: 'MedievalSharp', 'Noto Serif KR', serif; font-size: 0.95rem; 
+            padding: 8px 15px; cursor: pointer; border: 1px solid; transition: 0.2s;
+        }
+        .btn-empty-all { color: #b71c1c; border-color: #b71c1c; background: rgba(183, 28, 28, 0.1); }
+        .btn-empty-all:hover { background: #b71c1c; color: white; }
+        .btn-restore-all { color: #1565c0; border-color: #1565c0; background: rgba(21, 101, 192, 0.1); }
+        .btn-restore-all:hover { background: #1565c0; color: white; }
+
+        /* LIST */
+        ul { list-style: none; padding: 0; }
+        .quest-item { border-bottom: 1px dashed rgba(0,0,0,0.2); margin-bottom: 5px; transition: background 0.2s; }
+        .quest-header { padding: 15px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .quest-header:hover { background: rgba(0,0,0,0.05); }
+        .header-left { display: flex; flex-direction: column; flex-grow: 1; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .quest-title { font-weight: bold; font-size: 1.1rem; transition: color 0.3s; display: flex; align-items: center; gap: 8px; }
+        
+        .initial-badge { font-family: 'MedievalSharp', 'Noto Serif KR', serif; font-weight: bold; font-size: 1.2rem; display: inline-block; width: 20px; text-align: center; margin-right: 5px; }
+        .type-m { color: var(--main-color); } .type-s { color: var(--side-color); } .type-a { color: var(--task-color); }
+        
+        .quest-meta { font-size: 0.8rem; color: var(--ink-faded); margin-top: 4px; padding-left: 36px;}
+        .deadline-badge { display: inline-block; margin-left: 10px; font-size: 0.8rem; color: var(--fail-color); font-weight: bold; }
+        .deadline-badge::before { content: "⏳ "; }
+        .end-badge { display: inline-block; margin-left: 10px; font-size: 0.8rem; font-weight: bold; }
+        .end-badge.success { color: var(--success-color); } .end-badge.success::before { content: "🏁 "; }
+        .end-badge.fail { color: var(--fail-color); } .end-badge.fail::before { content: "💀 "; }
+
+        .quest-detail { display: none; padding: 15px; background: rgba(0,0,0,0.03); font-size: 0.95rem; color: #4a4a4a; }
+        .quest-item.open .quest-detail { display: block; }
+        .quest-item.open .toggle-arrow { transform: rotate(180deg); }
+
+        /* CHECKLIST & STATUS */
+        .checklist-row { padding: 3px 0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .checklist-row:hover { background-color: rgba(0,0,0,0.05); }
+        .check-box-icon { font-weight: bold; font-family: 'MedievalSharp', serif; font-size: 1.1rem; }
+        .checklist-row.checked .check-box-icon { color: var(--success-color); }
+        .checklist-row.checked span { text-decoration: line-through; color: #777; }
+        .quest-item.completed .quest-title { text-decoration: line-through; color: var(--success-color); font-style: italic; }
+        .quest-item.failed .quest-title { text-decoration: line-through; color: var(--fail-color); font-style: italic; }
+        .quest-item.deleted .quest-title { text-decoration: line-through; color: #757575; }
+
+        /* BUTTONS (LIST VIEW) */
+        .btn-group { margin-top: 15px; text-align: right; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 10px; }
+        .action-btn { padding: 5px 10px; margin-left: 5px; background: transparent; border: 1px solid var(--ink); cursor: pointer; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
+        .btn-trash { color: #b71c1c; border-color: #b71c1c; } .btn-trash:hover { background: #b71c1c; color: white; }
+        .btn-restore { color: #1565c0; border-color: #1565c0; }
+        .btn-edit { color: #5d4037; border-color: #5d4037; } .btn-edit:hover { background: #5d4037; color: white; }
+        .btn-save { color: var(--success-color); border-color: var(--success-color); font-weight: bold; } .btn-save:hover { background: var(--success-color); color: white; }
+        .edit-input { font-size: 1.1rem; font-weight: bold; border-bottom: 2px solid var(--red-accent); background: rgba(255,255,255,0.4); margin-bottom: 5px; }
+        .edit-textarea { width: 100%; height: 120px; font-family: 'Noto Serif KR', serif; background: rgba(255,255,255,0.4); border: 2px solid var(--gold-accent); padding: 5px; }
+
+        /* CALENDAR */
+        .calendar-wrapper { display: none; width: 100%; height: 100%; }
+        .calendar-wrapper.show { display: block; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
+        .cal-nav-btn { background: transparent; border: 1px solid var(--ink); font-size: 1.2rem; cursor: pointer; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+        .cal-nav-btn:hover { background: rgba(0,0,0,0.1); }
+        .cal-title { font-size: 1.5rem; font-weight: bold; color: var(--red-accent); }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background-color: rgba(92, 74, 48, 0.2); border: 2px solid #5c4a30; }
+        .cal-day-name { text-align: center; padding: 5px; background: rgba(255,255,255,0.2); font-weight: bold; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
+        
+        .cal-day {
+            background-color: var(--paper-main); min-height: 80px; padding: 5px;
+            position: relative; cursor: pointer; transition: 0.2s; border: 1px solid rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; gap: 3px;
+        }
+        .cal-day:hover { background-color: rgba(255,255,255,0.6); box-shadow: inset 0 0 10px rgba(139, 69, 19, 0.2); }
+        .cal-day.today { background-color: rgba(255, 215, 0, 0.15); font-weight: bold; }
+        .cal-day.empty { background-color: rgba(0,0,0,0.05); cursor: default; }
+        .day-number { font-size: 0.9rem; margin-bottom: 2px; text-align: right; }
+        
+        .cal-event { font-size: 0.8rem; padding: 2px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 1px; font-family: 'MedievalSharp', 'Noto Serif KR', serif; cursor: pointer; transition: transform 0.1s; }
+        .cal-event:hover { transform: scale(1.05); z-index: 10; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
+        
+        .evt-start { color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.3); }
+        .evt-main { background-color: var(--main-color); border-left: 3px solid #ff5252; }
+        .evt-side { background-color: var(--side-color); border-left: 3px solid #64ffda; }
+        .evt-task { background-color: var(--task-color); border-left: 3px solid #bdbdbd; }
+        .evt-deadline { background-color: transparent; font-weight: bold; text-shadow: none; border-style: solid; border-width: 1px; }
+        .evt-deadline.main { color: var(--main-color); border-color: var(--main-color); background-color: rgba(139, 0, 0, 0.1); }
+        .evt-deadline.side { color: var(--side-color); border-color: var(--side-color); background-color: rgba(47, 79, 79, 0.1); }
+        .evt-deadline.task { color: var(--task-color); border-color: var(--task-color); background-color: rgba(93, 64, 55, 0.1); }
+        
+        .cal-event.completed { text-decoration: line-through; opacity: 0.6; filter: grayscale(50%); border-color: var(--success-color) !important; color: var(--success-color) !important; }
+        .cal-event.failed { text-decoration: line-through; opacity: 0.6; filter: grayscale(50%); border-color: var(--fail-color) !important; color: var(--fail-color) !important; }
+
+        /* MODALS */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-box { background: var(--paper-main); border: 4px double #5c4a30; padding: 20px; width: 320px; text-align: center; box-shadow: 0 0 20px #000; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
+        .modal-title { font-size: 1.2rem; color: var(--red-accent); margin-bottom: 10px; border-bottom: 1px solid var(--ink); padding-bottom: 5px; }
+        .modal-input { width: 90%; font-family: 'Noto Serif KR', serif; font-size: 1rem; padding: 5px; border: none; border-bottom: 2px solid var(--ink); background: transparent; outline: none; margin: 10px 0; }
+        .modal-buttons { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .modal-btn { padding: 5px 15px; cursor: pointer; border: 1px solid var(--ink); background: transparent; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
+        .modal-btn.yes { background: var(--red-accent); color: white; }
+        .modal-btn.no { background: white; }
+
+        /* Quest Action Modal Specifics */
+        .q-detail-row { text-align: left; margin-bottom: 8px; font-family: 'Noto Serif KR', serif; font-size: 0.95rem; }
+        .q-label { font-weight: bold; color: var(--ink-faded); font-size: 0.85rem; }
+        .q-action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .q-btn { border: 1px solid var(--ink); background: transparent; padding: 8px; cursor: pointer; font-family: 'MedievalSharp', 'Noto Serif KR', serif; transition: 0.2s; font-size: 0.9rem; }
+        .q-btn:hover { transform: scale(1.05); }
+        .q-btn.complete { border-color: var(--success-color); color: var(--success-color); } .q-btn.complete:hover { background: var(--success-color); color: white; }
+        .q-btn.fail { border-color: var(--fail-color); color: var(--fail-color); } .q-btn.fail:hover { background: var(--fail-color); color: white; }
+        .q-btn.edit { border-color: #5d4037; color: #5d4037; } .q-btn.edit:hover { background: #5d4037; color: white; }
+        .q-btn.delete { border-color: var(--trash-color); color: var(--trash-color); } .q-btn.delete:hover { background: var(--trash-color); color: white; }
+
+        @media (max-width: 500px) {
+            .quest-meta { display: block; }
+            .tab-btn { font-size: 0.8rem; padding: 8px 4px; }
+            .hud-panel { flex-direction: column; gap: 10px; align-items: flex-start; }
+            .trash-controls { flex-direction: column; gap: 10px; }
+            .trash-btn { width: 100%; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="journal-container">
+        <!-- HUD -->
+        <div class="hud-panel">
+            <div class="hud-section" id="clockSection">
+                <div class="hud-icon">🕰️</div>
+                <div class="hud-text">
+                    <span class="hud-date" id="clockDate">--.--.-- (--)</span>
+                    <span class="hud-main" id="clockTime">00:00</span>
+                    <span class="hud-sub" id="clockPhase">확인 중...</span>
+                </div>
+            </div>
+            <div class="hud-section" id="weatherSection" onclick="openWeatherModal()" title="클릭하여 위치 설정">
+                <div class="hud-icon" id="weatherIcon">🌤️</div>
+                <div class="hud-text">
+                    <span class="hud-main" id="weatherTemp">--°C</span>
+                    <span class="hud-sub" id="weatherDesc">위치 설정 필요</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="main" onclick="switchTab('main')">메인</button>
+            <button class="tab-btn" data-tab="side" onclick="switchTab('side')">서브</button>
+            <button class="tab-btn" data-tab="task" onclick="switchTab('task')">기타</button>
+            <button class="tab-btn" data-tab="completed" onclick="switchTab('completed')">성공</button>
+            <button class="tab-btn" data-tab="failed" onclick="switchTab('failed')">실패</button>
+            <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar')">📅 달력</button>
+            <button class="tab-btn" data-tab="trash" onclick="switchTab('trash')">🗑️ 휴지통</button>
+        </nav>
+
+        <!-- MAIN PARCHMENT -->
+        <div id="parchment" class="parchment">
+            <h2 id="sectionTitle">메인</h2>
+
+            <!-- TRASH CONTROLS -->
+            <div id="trashControls" class="trash-controls">
+                <button class="trash-btn btn-restore-all" onclick="openModal('restoreTrash')">♻ 모두 복구</button>
+                <button class="trash-btn btn-empty-all" onclick="openModal('emptyTrash')">🔥 모두 비우기</button>
+            </div>
+
+            <div id="inputArea" class="input-area">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="qTitle" style="flex-grow:2;" placeholder="임무 제목 입력..." onkeypress="if(event.key==='Enter') addQuest()">
+                    <input type="datetime-local" id="qDeadline" style="flex-grow:1;" title="마감 기한 (선택사항)">
+                </div>
+                <div class="input-tools"><button class="tool-btn" onclick="insertChecklist('qDesc')">+ 할 일 추가</button></div>
+                <textarea id="qDesc" placeholder="상세 내용..."></textarea>
+                <select id="qType">
+                    <option value="main">메인</option>
+                    <option value="side">서브</option>
+                    <option value="task">기타</option>
+                </select>
+                <button class="add-btn" onclick="addQuest()">기록 추가</button>
+            </div>
+
+            <ul id="list"></ul>
+            
+            <div id="calendarWrapper" class="calendar-wrapper">
+                <div class="calendar-header">
+                    <button class="cal-nav-btn" onclick="changeMonth(-1)">❮</button>
+                    <span id="calTitle" class="cal-title">YYYY년 M월</span>
+                    <button class="cal-nav-btn" onclick="changeMonth(1)">❯</button>
+                </div>
+                <div class="calendar-grid" id="calendarGrid"></div>
+            </div>
+
+            <div id="emptyMsg" style="text-align:center; color:#777; margin-top:30px;">기록 없음</div>
+        </div>
+        
+        <div style="text-align:center; margin-top:20px; cursor:pointer; color:#777; text-decoration:underline;" onclick="openModal('reset')">
+            ⚠ 모든 데이터 초기화
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="customModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">확인 (Confirmation)</div>
+            <p id="modalText">정말 삭제하시겠습니까?</p>
+            <div class="modal-buttons">
+                <button class="modal-btn yes" id="modalYesBtn">예</button>
+                <button class="modal-btn no" onclick="closeModal()">아니오</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="weatherModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">위치 설정 (Set Location)</div>
+            <p style="font-size:0.9rem; color:#555;">도시 이름을 영문으로 입력하세요.</p>
+            <input type="text" id="cityInput" class="modal-input" placeholder="도시 이름 (영문 입력)" onkeypress="if(event.key==='Enter') searchLocation()">
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="searchLocation()">검색</button>
+                <button class="modal-btn no" onclick="closeWeatherModal()">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="questFormModal" class="modal-overlay">
+        <div class="modal-box" style="width: 400px; text-align: left;">
+            <div class="modal-title" style="text-align: center;" id="formModalTitle">새 임무 작성</div>
+            <input type="text" id="modalQTitle" class="modal-input" style="width:96%;" placeholder="임무 제목">
+            <div style="margin-bottom: 5px; font-size: 0.9rem;">마감 기한:</div>
+            <input type="datetime-local" id="modalQDeadline" class="modal-input" style="width:96%;">
+            <textarea id="modalQDesc" class="edit-textarea" style="width:96%; height:80px; margin-top:10px;" placeholder="상세 내용..."></textarea>
+            <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                <button class="tool-btn" onclick="insertChecklist('modalQDesc')">+ 할 일 추가</button>
+                <select id="modalQType" style="border:none; border-bottom:1px solid var(--ink); background:transparent; font-family:'Noto Serif KR',serif;">
+                    <option value="main"></option>
+                    <option value="side">서브</option>
+                    <option value="task">기타</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="submitQuestForm()">저장</button>
+                <button class="modal-btn no" onclick="closeQuestFormModal()">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="questDetailModal" class="modal-overlay">
+        <div class="modal-box" style="width: 350px;">
+            <div class="modal-title" id="detailTitle">Quest Title</div>
+            <div class="q-detail-row"><span class="q-label">상태:</span> <span id="detailStatus" style="font-weight:bold;">Active</span></div>
+            <div class="q-detail-row"><span class="q-label">종류:</span> <span id="detailType">Main</span></div>
+            <div class="q-detail-row"><span class="q-label">시작:</span> <span id="detailStart">-</span></div>
+            <div class="q-detail-row"><span class="q-label" id="detailDeadlineLabel">마감:</span> <span id="detailDeadline">-</span></div>
+            <div class="q-detail-row" style="border-top:1px dashed #5c4a30; padding-top:5px; margin-top:5px; max-height:100px; overflow-y:auto;" id="detailDesc"></div>
+            <div class="q-action-btns" id="detailBtns"></div>
+            <div style="margin-top:15px; text-align:center;"><span style="font-size:0.8rem; text-decoration:underline; cursor:pointer;" onclick="closeDetailModal()">닫기</span></div>
+        </div>
+    </div>
+
+    <script>
+        let quests = [];
+        let currentTab = 'main';
+        let editingId = null;
+        let calendarEditId = null;
+        let pendingAction = null;
+        let pendingId = null;
+        let calDate = new Date();
+        let selectedDetailId = null;
+        let customStartDate = null;
+
+        window.onload = function() {
+            const saved = localStorage.getItem('kcd_quests_full'); 
+            if (saved) quests = JSON.parse(saved);
+            checkDeadlines(); setInterval(checkDeadlines, 60000); 
+            updateClock(); setInterval(updateClock, 1000);
+            initWeather(); switchTab('main');
+        };
+
+        function updateClock() {
+            const now = new Date();
+            const year = now.getFullYear(); const month = (now.getMonth() + 1).toString().padStart(2, '0'); const date = now.getDate().toString().padStart(2, '0');
+            const days = ['일', '월', '화', '수', '목', '금', '토']; const dayName = days[now.getDay()];
+            const hours = now.getHours(); const minutes = now.getMinutes(); const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            let phase = ""; if (hours >= 5 && hours < 11) phase = "아침"; else if (hours >= 11 && hours < 14) phase = "정오"; else if (hours >= 14 && hours < 18) phase = "오후"; else if (hours >= 18 && hours < 22) phase = "저녁"; else phase = "밤";
+            document.getElementById('clockDate').innerText = `${year}. ${month}. ${date}. (${dayName})`;
+            document.getElementById('clockTime').innerText = timeStr; document.getElementById('clockPhase').innerText = phase;
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = ''; 
+            const days = ["일", "월", "화", "수", "목", "금", "토"];
+            days.forEach(d => { const h = document.createElement('div'); h.className = 'cal-day-name'; h.innerText = d; grid.appendChild(h); });
+
+            const year = calDate.getFullYear(); const month = calDate.getMonth();
+            document.getElementById('calTitle').innerText = `${year}년 ${month + 1}월`;
+
+            const firstDay = new Date(year, month, 1).getDay(); const lastDate = new Date(year, month + 1, 0).getDate(); const today = new Date();
+
+            for (let i = 0; i < firstDay; i++) { const c = document.createElement('div'); c.className = 'cal-day empty'; grid.appendChild(c); }
+
+            for (let d = 1; d <= lastDate; d++) {
+                const cell = document.createElement('div'); cell.className = 'cal-day';
+                if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cell.classList.add('today');
+                cell.onclick = (e) => { if(e.target.classList.contains('cal-event')) return; openQuestFormModal(null, year, month, d); };
+                const dayNum = document.createElement('div'); dayNum.className = 'day-number'; dayNum.innerText = d; cell.appendChild(dayNum);
+
+                const currentDayStr = new Date(year, month, d).toDateString();
+                let startedToday = quests.filter(q => new Date(q.id).toDateString() === currentDayStr && q.status !== 'deleted');
+                let deadlineToday = quests.filter(q => q.deadline && new Date(q.deadline).toDateString() === currentDayStr && q.status !== 'deleted');
+
+                const typePriority = { 'main': 1, 'side': 2, 'task': 3 };
+                startedToday.sort((a, b) => typePriority[a.type] - typePriority[b.type]);
+                deadlineToday.sort((a, b) => typePriority[a.type] - typePriority[b.type]);
+
+                const addEvent = (q, isDeadline) => {
+                    const evt = document.createElement('div');
+                    let baseClass = `cal-event evt-${q.type}`;
+                    if(isDeadline) baseClass += ' evt-deadline'; else baseClass += ' evt-start';
+                    if(q.status === 'completed') baseClass += ' completed'; if(q.status === 'failed') baseClass += ' failed';
+                    evt.className = baseClass;
+                    const init = getInitialData(q.type).char;
+                    evt.innerText = isDeadline ? `⏳ ${q.title}` : `${init}. ${q.title}`;
+                    evt.onclick = (e) => { e.stopPropagation(); openDetailModal(q.id); };
+                    cell.appendChild(evt);
+                };
+                startedToday.forEach(q => addEvent(q, false)); deadlineToday.forEach(q => addEvent(q, true));
+                grid.appendChild(cell);
+            }
+        }
+        function changeMonth(delta) { calDate.setMonth(calDate.getMonth() + delta); renderCalendar(); }
+
+        function openQuestFormModal(id = null, year, month, day) {
+            document.getElementById('questFormModal').style.display = 'flex'; calendarEditId = id;
+            if (id) {
+                const q = quests.find(x => x.id === id); document.getElementById('formModalTitle').innerText = "임무 수정";
+                document.getElementById('modalQTitle').value = q.title; document.getElementById('modalQDesc').value = q.desc; document.getElementById('modalQType').value = q.type;
+                let iso = ""; if(q.deadline) { const d = new Date(q.deadline); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); iso = d.toISOString().slice(0,16); }
+                document.getElementById('modalQDeadline').value = iso;
+                customStartDate = null;
+            } else {
+                document.getElementById('formModalTitle').innerText = "새 임무 작성"; document.getElementById('modalQTitle').value = ''; document.getElementById('modalQDesc').value = ''; document.getElementById('modalQType').value = 'main';
+                const yyyy = year; const mm = String(month + 1).padStart(2, '0'); const dd = String(day).padStart(2, '0');
+                document.getElementById('modalQDeadline').value = `${yyyy}-${mm}-${dd}T12:00`;
+                const now = new Date();
+                customStartDate = new Date(year, month, day, now.getHours(), now.getMinutes(), now.getSeconds()).getTime();
+            }
+            document.getElementById('modalQTitle').focus();
+        }
+        function closeQuestFormModal() { document.getElementById('questFormModal').style.display = 'none'; calendarEditId = null; customStartDate = null; }
+        
+        function submitQuestForm() {
+            const title = document.getElementById('modalQTitle').value.trim(); const desc = document.getElementById('modalQDesc').value; const type = document.getElementById('modalQType').value; const deadlineVal = document.getElementById('modalQDeadline').value; const deadline = deadlineVal ? new Date(deadlineVal).getTime() : null;
+            if(!title) return alert("제목을 입력해주세요.");
+            if (calendarEditId) { 
+                const q = quests.find(x => x.id === calendarEditId); 
+                if(q) { q.title = title; q.desc = desc; q.type = type; q.deadline = deadline; } 
+            } else { 
+                const newId = customStartDate ? customStartDate : Date.now();
+                quests.unshift({ id: newId, title: title, desc: desc, type: type, deadline: deadline, status: 'active', open: false }); 
+            }
+            save(); closeQuestFormModal(); checkDeadlines(); renderCalendar();
+        }
+
+        function getLocalizedStatus(status) {
+            switch(status) {
+                case 'active': return '진행 중';
+                case 'completed': return '성공함';
+                case 'failed': return '실패함';
+                case 'deleted': return '삭제됨';
+                default: return status;
+            }
+        }
+
+        function getLocalizedType(type) {
+            switch(type) {
+                case 'main': return '메인';
+                case 'side': return '서브';
+                case 'task': return '기타';
+                default: return type;
+            }
+        }
+
+        function openDetailModal(id) {
+            const q = quests.find(x => x.id === id); if(!q) return; selectedDetailId = id;
+            document.getElementById('detailTitle').innerText = q.title; 
+            const locStatus = getLocalizedStatus(q.status);
+            document.getElementById('detailStatus').innerText = locStatus;
+            document.getElementById('detailStatus').style.color = q.status === 'completed' ? 'var(--success-color)' : (q.status === 'failed' ? 'var(--fail-color)' : 'var(--ink)');
+            document.getElementById('detailType').innerText = getLocalizedType(q.type); 
+            document.getElementById('detailStart').innerText = formatDate(q.id);
+            
+            // 상태에 따른 라벨 변경 및 시간 표시 (마감 vs 종료)
+            let label = "마감:";
+            let timeToShow = q.deadline;
+            
+            if (q.status === 'completed' || q.status === 'failed') {
+                label = "종료:";
+                // 완료/실패된 시각(finishedAt)이 있으면 그걸 쓰고, 없으면 기존 마감일(하위호환) 사용
+                timeToShow = q.finishedAt ? q.finishedAt : q.deadline;
+            }
+
+            document.getElementById('detailDeadlineLabel').innerText = label;
+            document.getElementById('detailDeadline').innerText = timeToShow ? formatDate(timeToShow) : "-";
+            
+            document.getElementById('detailDesc').innerHTML = parseDescription(q.desc, q.id);
+            
+            const btnContainer = document.getElementById('detailBtns'); btnContainer.innerHTML = '';
+            
+            const editBtn = `<button class="q-btn edit" onclick="detailEdit()">✏️ 수정</button>`;
+            const deleteBtn = `<button class="q-btn delete" onclick="detailAction('delete')">🗑️ 삭제</button>`;
+
+            if (q.status === 'active') {
+                btnContainer.innerHTML += `<button class="q-btn complete" onclick="detailAction('completed')">✅ 성공</button>`;
+                btnContainer.innerHTML += `<button class="q-btn fail" onclick="detailAction('failed')">❌ 실패</button>`;
+                btnContainer.innerHTML += editBtn;
+            } else if (q.status === 'deleted') {
+            } else {
+                btnContainer.innerHTML += `<button class="q-btn edit" onclick="detailAction('active')">↺ 재활성</button>`;
+                btnContainer.innerHTML += editBtn; 
+            }
+            
+            if(q.status !== 'deleted') btnContainer.innerHTML += deleteBtn;
+            
+            document.getElementById('questDetailModal').style.display = 'flex';
+        }
+        function closeDetailModal() { document.getElementById('questDetailModal').style.display = 'none'; selectedDetailId = null; }
+        
+        function detailAction(action) {
+            if(!selectedDetailId) return; 
+            setStatus(selectedDetailId, action); // 통합된 setStatus 함수 사용
+            closeDetailModal();
+        }
+        
+        function detailEdit() { if(!selectedDetailId) return; const id = selectedDetailId; closeDetailModal(); openQuestFormModal(id); }
+
+        function checkDeadlines() {
+            const now = Date.now(); let changed = false; 
+            quests.forEach(q => { 
+                if (q.status === 'active' && q.deadline && now > q.deadline) { 
+                    q.status = 'failed'; 
+                    q.finishedAt = q.deadline; // 마감 시간에 정확히 실패한 것으로 기록
+                    changed = true; 
+                } 
+            });
+            if (changed) { save(); if(currentTab === 'calendar') renderCalendar(); else renderList(); }
+        }
+
+        function switchTab(tab) {
+            currentTab = tab; editingId = null;
+            document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); if(b.dataset.tab === tab) b.classList.add('active'); });
+            const p = document.getElementById('parchment'); document.getElementById('sectionTitle').innerText = {'main':'메인','side':'서브','task':'기타','completed':'성공','failed':'실패','trash':'휴지통','calendar':'달력'}[tab];
+            const listEl = document.getElementById('list'); const inputArea = document.getElementById('inputArea'); const calendarWrapper = document.getElementById('calendarWrapper'); const emptyMsg = document.getElementById('emptyMsg');
+            const trashControls = document.getElementById('trashControls');
+            
+            p.classList.remove('trash-mode'); inputArea.classList.remove('hidden'); listEl.style.display = 'block'; calendarWrapper.classList.remove('show'); emptyMsg.style.display = 'none';
+            trashControls.classList.remove('show');
+
+            if (tab === 'calendar') { 
+                inputArea.classList.add('hidden'); listEl.style.display = 'none'; calendarWrapper.classList.add('show'); renderCalendar(); 
+            } else { 
+                if(tab === 'trash') {
+                    p.classList.add('trash-mode');
+                    trashControls.classList.add('show');
+                }
+                if(['completed', 'failed', 'trash'].includes(tab)) inputArea.classList.add('hidden'); 
+                else document.getElementById('qType').value = tab; 
+                renderList(); 
+            }
+        }
+        function initWeather() {
+            const savedLoc = localStorage.getItem('kcd_location'); if (savedLoc) { const loc = JSON.parse(savedLoc); fetchWeather(loc.lat, loc.lon, loc.name); }
+            else { if (!navigator.geolocation) { document.getElementById('weatherDesc').innerText = "위치 설정 필요"; return; } navigator.geolocation.getCurrentPosition((p) => { fetchWeather(p.coords.latitude, p.coords.longitude, "내 위치"); }, () => { document.getElementById('weatherDesc').innerText = "위치 설정 필요"; }); }
+        }
+        function openWeatherModal() { document.getElementById('weatherModal').style.display = 'flex'; document.getElementById('cityInput').focus(); }
+        function closeWeatherModal() { document.getElementById('weatherModal').style.display = 'none'; }
+        function searchLocation() {
+            const city = document.getElementById('cityInput').value.trim(); if(!city) return;
+            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1&language=en&format=json`).then(res=>res.json()).then(data=>{
+                if(data.results && data.results.length>0) { const res=data.results[0]; localStorage.setItem('kcd_location', JSON.stringify({lat:res.latitude, lon:res.longitude, name:res.name})); fetchWeather(res.latitude, res.longitude, res.name); closeWeatherModal(); } else alert("도시를 찾을 수 없습니다.");
+            }).catch(()=>alert("오류 발생"));
+        }
+        function fetchWeather(lat, lon, name) {
+            document.getElementById('weatherDesc').innerText = "갱신 중...";
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`).then(res=>res.json()).then(data=>{
+                const w = data.current_weather; document.getElementById('weatherTemp').innerText = `${w.temperature}°C`;
+                const info = getWeatherInfo(w.weathercode); document.getElementById('weatherIcon').innerText = info.icon; document.getElementById('weatherDesc').innerText = `${name}: ${info.desc}`;
+            });
+        }
+        function getWeatherInfo(code) { if(code===0) return {icon:"☀️", desc:"맑음"}; if(code<=3) return {icon:"⛅", desc:"구름"}; if(code<=48) return {icon:"🌫️", desc:"안개"}; if(code<=55) return {icon:"🌦️", desc:"이슬비"}; if(code<=67) return {icon:"🌧️", desc:"비"}; if(code<=77) return {icon:"🌨️", desc:"눈"}; if(code<=82) return {icon:"☔", desc:"소나기"}; if(code<=99) return {icon:"⚡", desc:"뇌우"}; return {icon:"🌡️", desc:"보통"}; }
+        function getInitialData(type) { if(type === 'main') return { char: 'M', class: 'type-m' }; if(type === 'side') return { char: 'S', class: 'type-s' }; return { char: 'A', class: 'type-a' }; }
+        function formatDate(ts) { if(!ts) return ''; const d = new Date(ts); return d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); }
+        function insertChecklist(elId) { const t = document.getElementById(elId); if(t) { t.value += (t.value.length > 0 ? "\n" : "") + "- [ ] "; t.focus(); } }
+        
+        function addQuest() {
+            const title = document.getElementById('qTitle').value.trim(); const desc = document.getElementById('qDesc').value; const type = document.getElementById('qType').value; const dlVal = document.getElementById('qDeadline').value;
+            if(!title) return; const deadline = dlVal ? new Date(dlVal).getTime() : null;
+            quests.unshift({ id: Date.now(), title: title, desc: desc, type: type, deadline: deadline, status: 'active', open: false });
+            save(); document.getElementById('qTitle').value = ''; document.getElementById('qDesc').value = ''; document.getElementById('qDeadline').value = ''; if(currentTab === type) renderList();
+        }
+        
+        function saveEdit(id) {
+            const newTitle = document.getElementById(`edit-title-${id}`).value; const newDesc = document.getElementById(`edit-desc-${id}`).value; const dlVal = document.getElementById(`edit-deadline-${id}`).value;
+            const newDeadline = dlVal ? new Date(dlVal).getTime() : null; const q = quests.find(x => x.id === id); if(q) { q.title = newTitle; q.desc = newDesc; q.deadline = newDeadline; save(); } editingId = null; checkDeadlines(); renderList();
+        }
+        function renderList() {
+            const listEl = document.getElementById('list'); listEl.innerHTML = ''; let filtered = [];
+            if (currentTab === 'trash') filtered = quests.filter(q => q.status === 'deleted'); else if (currentTab === 'completed') filtered = quests.filter(q => q.status === 'completed'); else if (currentTab === 'failed') filtered = quests.filter(q => q.status === 'failed'); else filtered = quests.filter(q => q.type === currentTab && q.status === 'active');
+            document.getElementById('emptyMsg').style.display = filtered.length ? 'none' : 'block';
+            
+            if (currentTab === 'trash') {
+                document.getElementById('trashControls').style.display = filtered.length ? 'flex' : 'none';
+            }
+
+            filtered.forEach(q => {
+                const li = document.createElement('li'); li.className = `quest-item ${q.status}`; if(q.open) li.classList.add('open');
+                const initData = getInitialData(q.type); const initialChar = currentTab === 'trash' ? '☠️' : initData.char; const initialClass = currentTab === 'trash' ? '' : initData.class; const isEditing = (editingId === q.id); const startDate = formatDate(q.id);
+                let deadlineISO = ""; if(q.deadline) { const d = new Date(q.deadline); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); deadlineISO = d.toISOString().slice(0,16); }
+                
+                if (isEditing) {
+                    li.innerHTML = `<div class="quest-header" style="cursor:default;"><div class="header-left"><span>편집 모드</span></div></div><div class="quest-detail" style="display:block;"><input type="text" id="edit-title-${q.id}" class="edit-input" value="${q.title}"><div style="margin-bottom:10px;"><label style="font-size:0.8rem;">마감 기한: </label><input type="datetime-local" id="edit-deadline-${q.id}" value="${deadlineISO}"></div><div class="input-tools"><button class="tool-btn" onclick="insertChecklist('edit-desc-${q.id}')">+ 할 일 추가</button></div><textarea id="edit-desc-${q.id}" class="edit-textarea">${q.desc}</textarea><div class="btn-group"><button class="action-btn btn-save" onclick="saveEdit(${q.id})">💾 저장</button><button class="action-btn" onclick="cancelEdit()">취소</button></div></div>`;
+                } else {
+                    let buttons = ''; 
+                    
+                    if(currentTab === 'trash') {
+                        buttons = `<button class="action-btn btn-restore" onclick="event.stopPropagation(); restoreItem(${q.id})">♻ 복구</button><button class="action-btn btn-perm" onclick="event.stopPropagation(); openModal('deletePerm', ${q.id})">🔥 영구삭제</button>`; 
+                    } else if (currentTab === 'completed' || currentTab === 'failed') {
+                        buttons = `<button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'active')">다시 활성화</button><button class="action-btn btn-edit" onclick="event.stopPropagation(); startEdit(${q.id})">✎ 수정</button><button class="action-btn btn-trash" onclick="event.stopPropagation(); moveToTrash(${q.id})">삭제</button>`; 
+                    } else {
+                        buttons = `<button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'completed')">성공</button><button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'failed')">실패</button><button class="action-btn btn-edit" onclick="event.stopPropagation(); startEdit(${q.id})">✎ 수정</button><button class="action-btn btn-trash" onclick="event.stopPropagation(); moveToTrash(${q.id})">삭제</button>`;
+                    }
+                    
+                    const descHtml = parseDescription(q.desc, q.id);
+                    
+                    // 시간 표시 로직
+                    let timeDisplay = '';
+                    if (q.status === 'completed' || q.status === 'failed') {
+                        // 완료/실패된 시점 표시
+                        const finishTime = q.finishedAt ? q.finishedAt : q.deadline;
+                        if (finishTime) {
+                             const endClass = q.status === 'completed' ? 'success' : 'fail';
+                             timeDisplay = `<span class="end-badge ${endClass}">종료: ${formatDate(finishTime)}</span>`;
+                        }
+                    } else {
+                        // 진행중일 때 마감 표시
+                        if (q.deadline) {
+                            timeDisplay = `<span class="deadline-badge">마감: ${formatDate(q.deadline)}</span>`;
+                        }
+                    }
+                    
+                    li.innerHTML = `<div class="quest-header" onclick="toggleItem(${q.id})"><div class="header-left"><span class="quest-title"><span class="initial-badge ${initialClass}">${initialChar}</span> ${q.title}</span><div class="quest-meta">시작: ${startDate} ${timeDisplay}</div></div><div class="header-right"><span class="toggle-arrow">▼</span></div></div><div class="quest-detail"><div class="quest-desc-body">${descHtml}</div><div class="btn-group">${buttons}</div></div>`;
+                }
+                listEl.appendChild(li);
+            });
+        }
+        function parseDescription(text, qId) { if (!text) return '상세 내용 없음'; return text.split('\n').map((l, i) => { const tr = l.trim(); if (tr.startsWith('- [ ]')) return `<div class="checklist-row" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☐</span> <span>${tr.substring(5)}</span></div>`; if (tr.startsWith('- [x]')) return `<div class="checklist-row checked" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☒</span> <span>${tr.substring(5)}</span></div>`; return `<div>${l}</div>`; }).join(''); }
+        function toggleCheck(qId, i) { 
+            if(editingId === qId) return; 
+            const q = quests.find(x => x.id === qId); if(!q) return; 
+            const l = q.desc.split('\n'); const ln = l[i].trim(); 
+            if (ln.startsWith('- [ ]')) l[i] = ln.replace('- [ ]', '- [x]'); 
+            else if (ln.startsWith('- [x]')) l[i] = ln.replace('- [x]', '- [ ]'); 
+            q.desc = l.join('\n'); save(); 
+            if(currentTab === 'calendar') renderCalendar(); else renderList();
+            if(selectedDetailId === qId) { document.getElementById('detailDesc').innerHTML = parseDescription(q.desc, q.id); }
+        }
+        function toggleItem(id) { if(editingId === id) return; const item = quests.find(q => q.id === id); if(item) { item.open = !item.open; renderList(); } }
+        
+        function setStatus(id, s) { 
+            const item = quests.find(q => q.id === id); 
+            if(item) { 
+                item.status = s; 
+                // 완료 혹은 실패 상태로 변경 시, 현재 시간을 종료 시간으로 기록
+                if (s === 'completed' || s === 'failed') {
+                    item.finishedAt = Date.now();
+                } else if (s === 'active') {
+                    // 다시 활성화하면 종료 시간 초기화
+                    item.finishedAt = null;
+                }
+                save(); renderList(); 
+                if (currentTab === 'calendar') renderCalendar();
+            } 
+        }
+        
+        function moveToTrash(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'deleted'; item.open = false; save(); renderList(); } }
+        function restoreItem(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'active'; item.finishedAt = null; save(); renderList(); } }
+        function startEdit(id) { editingId = id; const q = quests.find(x => x.id === id); if(q) q.open = true; renderList(); }
+        function cancelEdit() { editingId = null; renderList(); }
+        
+        function openModal(act, id = null) { 
+            pendingAction = act; pendingId = id; 
+            const m = document.getElementById('customModal'); 
+            const t = document.getElementById('modalText'); 
+            
+            if(act === 'deletePerm') t.innerText = "이 기록을 영구히 삭제하시겠습니까?"; 
+            else if (act === 'reset') t.innerText = "모든 데이터를 삭제하고 초기화하시겠습니까?"; 
+            else if (act === 'emptyTrash') t.innerText = "휴지통을 완전히 비우시겠습니까?\n이 작업은 되돌릴 수 없습니다.";
+            else if (act === 'restoreTrash') t.innerText = "휴지통의 모든 항목을 복구하시겠습니까?";
+            
+            m.style.display = 'flex'; 
+        }
+        
+        function closeModal() { document.getElementById('customModal').style.display = 'none'; pendingAction = null; pendingId = null; }
+        
+        document.getElementById('modalYesBtn').onclick = function() {
+            if (pendingAction === 'deletePerm' && pendingId) { 
+                quests = quests.filter(q => q.id !== pendingId); 
+            }
+            else if (pendingAction === 'reset') { 
+                localStorage.removeItem('kcd_quests_full'); localStorage.removeItem('kcd_location'); quests = []; location.reload(); return; 
+            }
+            else if (pendingAction === 'emptyTrash') {
+                quests = quests.filter(q => q.status !== 'deleted');
+            }
+            else if (pendingAction === 'restoreTrash') {
+                quests.forEach(q => { if(q.status === 'deleted') { q.status = 'active'; q.finishedAt = null; } });
+            }
+            
+            save(); 
+            if(currentTab === 'calendar') renderCalendar(); 
+            else renderList();
+            
+            closeModal();
+        };
+        function save() { localStorage.setItem('kcd_quests_full', JSON.stringify(quests)); }
+    </script>
+</body>
+</html>
