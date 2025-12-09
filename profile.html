@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Profile v19.14 (Edu Detail)</title>
+<title>Profile v19.15 (Layout Update)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap" rel="stylesheet">
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -117,7 +117,7 @@
 
   .helper { font-size: 0.75rem; color: var(--success); text-align: right; height: 16px; margin-top: 4px; font-weight: 600; opacity: 0; }
   .helper.show { opacity: 1; }
-  input[type=range] { -webkit-appearance: none; background: transparent; height: 24px; width: 100%; margin: 5px 0; }
+  input[type=range] { -webkit-appearance: none; background: transparent; height: 24px; width: 100%; margin: 5px 0; cursor: pointer; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #fff; margin-top: -7px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
   input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; }
 
@@ -234,27 +234,54 @@
             <span>💘 이성적 매력</span>
             <span id="mAttrTier" class="tier-badge">UNRANKED</span>
           </div>
+          
+          <!-- Row 1: Age | MBTI (Moved MBTI here) -->
           <div class="form-grid">
             <div class="form-group"><div class="lbl">나이</div><input type="number" id="mAge" class="inp" value="32" oninput="app.save();app.calc()"></div>
+            <div class="form-group"><div class="lbl">성격 (MBTI)</div><select id="mMbti" class="inp" onchange="app.save();app.calc()"><option value="">선택안함</option><optgroup label="분석가형"><option value="INTJ">INTJ</option><option value="INTP">INTP</option><option value="ENTJ">ENTJ</option><option value="ENTP">ENTP</option></optgroup><optgroup label="외교관형"><option value="INFJ">INFJ</option><option value="INFP">INFP</option><option value="ENFJ">ENFJ</option><option value="ENFP">ENFP</option></optgroup><optgroup label="관리자형"><option value="ISTJ">ISTJ</option><option value="ISFJ" selected>ISFJ</option><option value="ESTJ">ESTJ</option><option value="ESFJ">ESFJ</option></optgroup><optgroup label="탐험가형"><option value="ISTP">ISTP</option><option value="ISFP">ISFP</option><option value="ESTP">ESTP</option><option value="ESFP">ESFP</option></optgroup></select></div>
+          </div>
+
+          <!-- Row 2: Height | Weight (Moved Height down, Added Weight) -->
+          <div class="form-grid">
             <div class="form-group">
                 <div class="lbl">키 (cm)</div>
                 <!-- Max Value Restriction -->
                 <input type="number" id="mHeight" class="inp" value="175" max="200" oninput="if(this.value>200)this.value=200; app.save();app.calc()">
             </div>
-          </div>
-          <div class="form-group"><div class="lbl">외모 <span id="mFaceTxt" style="color:var(--primary-m)">5.0</span></div><input type="range" id="mFace" min="1" max="10" step="0.1" value="5" oninput="app.save();app.calc()"></div>
-          <div class="form-grid">
-            <div class="form-group"><div class="lbl">체형</div><select id="mBody" class="inp" onchange="app.save();app.calc()"><option value="9">근육질/다부짐</option><option value="7" selected>보통/적당함</option><option value="5">슬림/마름</option><option value="3">통통/비만</option></select></div>
-            <div class="form-group"><div class="lbl">성격 (MBTI)</div><select id="mMbti" class="inp" onchange="app.save();app.calc()"><option value="">선택안함</option><optgroup label="분석가형"><option value="INTJ">INTJ</option><option value="INTP">INTP</option><option value="ENTJ">ENTJ</option><option value="ENTP">ENTP</option></optgroup><optgroup label="외교관형"><option value="INFJ">INFJ</option><option value="INFP">INFP</option><option value="ENFJ">ENFJ</option><option value="ENFP">ENFP</option></optgroup><optgroup label="관리자형"><option value="ISTJ">ISTJ</option><option value="ISFJ" selected>ISFJ</option><option value="ESTJ">ESTJ</option><option value="ESFJ">ESFJ</option></optgroup><optgroup label="탐험가형"><option value="ISTP">ISTP</option><option value="ISFP">ISFP</option><option value="ESTP">ESTP</option><option value="ESFP">ESFP</option></optgroup></select></div>
-          </div>
-          <div class="form-grid">
-            <div class="form-group"><div class="lbl">헤어 스타일</div><select id="mHair" class="inp" onchange="app.save();app.calc()"><option value="10">완벽 스타일링</option><option value="7" selected>트렌디하고 깔끔</option><option value="5">평범하고 단정</option><option value="3">관리 안함</option></select></div>
-            <div class="form-group"><div class="lbl">패션 센스</div><select id="mFashion" class="inp" onchange="app.save();app.calc()"><option value="10">매우 세련됨</option><option value="7" selected>센스 있고 깔끔</option><option value="5">무난하고 평범</option><option value="3">무관심/대충</option></select></div>
+            <div class="form-group">
+                <div class="lbl">몸무게 (kg)</div>
+                <!-- Weight Input (Does not trigger calc) -->
+                <input type="number" id="mWeight" class="inp" value="70" oninput="app.save()">
+            </div>
           </div>
           
+          <!-- Row 3: Face (Slider) -->
+          <div class="form-group"><div class="lbl">얼굴 <span id="mFaceTxt" style="color:var(--primary-m)">5.0</span></div><input type="range" id="mFace" min="1" max="10" step="0.1" value="5" oninput="app.save();app.calc()"></div>
+          
+          <!-- Row 4: Body (Slider) - Now Full Width for better control -->
+          <div class="form-group">
+            <div class="lbl">체형 <span id="mBodyTxt" style="color:var(--primary-m)">7.0</span></div>
+            <input type="range" id="mBody" min="1" max="10" step="0.1" value="7" oninput="app.save();app.calc()">
+          </div>
+          
+          <!-- Row 5: Hair | Fashion -->
           <div class="form-grid">
-            <div class="form-group"><div class="lbl">흡연 여부</div><select id="mSmoke" class="inp" onchange="app.save();app.calc()"><option value="0" selected>비흡연</option><option value="1">가끔</option><option value="2">흡연자</option></select></div>
-            <div class="form-group"><div class="lbl">문신/타투</div><select id="mTattoo" class="inp" onchange="app.save();app.calc()"><option value="0" selected>없음 (깨끗함)</option><option value="1">작은 레터링/미니</option><option value="2">눈에 띄는 타투</option><option value="3">전신/이레즈미</option></select></div>
+            <!-- 헤어 Slider -->
+            <div class="form-group">
+                <div class="lbl">헤어 스타일 <span id="mHairTxt" style="color:var(--primary-m)">7.0</span></div>
+                <input type="range" id="mHair" min="1" max="10" step="0.1" value="7" oninput="app.save();app.calc()">
+            </div>
+            <!-- 패션 Slider -->
+            <div class="form-group">
+                <div class="lbl">패션 센스 <span id="mFashionTxt" style="color:var(--primary-m)">7.0</span></div>
+                <input type="range" id="mFashion" min="1" max="10" step="0.1" value="7" oninput="app.save();app.calc()">
+            </div>
+          </div>
+          
+          <!-- Row 6: Smoke | Tattoo -->
+          <div class="form-grid">
+            <div class="form-group"><div class="lbl">흡연 여부</div><select id="mSmoke" class="inp" onchange="app.save();app.calc()"><option value="0" selected>비흡연</option><option value="1">흡연</option></select></div>
+            <div class="form-group"><div class="lbl">문신/타투</div><select id="mTattoo" class="inp" onchange="app.save();app.calc()"><option value="0" selected>없음</option><option value="1">작은 레터링/미니</option><option value="2">눈에 띄는 타투</option><option value="3">전신/이레즈미</option></select></div>
           </div>
         </div>
 
@@ -287,7 +314,7 @@
           </div>
 
           <div class="form-grid">
-            <div class="form-group"><div class="lbl">직업</div><select id="mJob" class="inp" onchange="app.save();app.calc()"><option value="10">전문직/사업가</option><option value="9">대기업/IT/금융</option><option value="8">공무원/공기업</option><option value="7" selected>중견/강소기업</option><option value="5">일반/기타</option><option value="3">학생/준비생</option></select></div>
+            <div class="form-group"><div class="lbl">직업</div><select id="mJob" class="inp" onchange="app.save();app.calc()"><option value="10">전문직</option><option value="9">대기업/IT/금융</option><option value="8">공무원/공기업</option><option value="7" selected>중견/강소기업</option><option value="5">중소기업</option><option value="3">학생/준비생</option></select></div>
             <div class="form-group">
                 <div class="lbl">학력</div>
                 <!-- Updated Education Options -->
@@ -296,7 +323,7 @@
                     <option value="9">서연고</option>
                     <option value="8">서성한</option>
                     <option value="7">중경외시</option>
-                    <option value="6" selected>건동홍</option>
+                    <option value="6">건동홍</option>
                     <option value="5">국숭세단</option>
                     <option value="4">광명상가</option>
                     <option value="3">기타 4년제</option>
@@ -356,7 +383,7 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const LABELS_ATTR = ['나이', '키', '외모', '체형', '헤어', '패션'];
+const LABELS_ATTR = ['나이', '키', '얼굴', '체형', '헤어', '패션'];
 const LABELS_SOCIAL = ['소득', '저축', '부동산', '학력', '직업', '차량'];
 const LOC_ZONES = ['서울','경기','강원','충청','전라','경상','제주','해외'];
 
@@ -424,7 +451,8 @@ const app = {
   },
 
   save() {
-    const ids = ['mName','mAge','mHeight','mMbti','mLoc','mSmoke','mEdu','mSal','mSave','mReal','mRealType','mFace', 'mHair', 'mFashion', 'mBody', 'mJob', 'mCar', 'mTattoo'];
+    // Added 'mWeight' to the saved ID list
+    const ids = ['mName','mAge','mHeight','mWeight','mMbti','mLoc','mSmoke','mEdu','mSal','mSave','mReal','mRealType','mFace', 'mHair', 'mFashion', 'mBody', 'mJob', 'mCar', 'mTattoo'];
     const data = {};
     ids.forEach(id => { if($(id)) data[id] = $(id).value; });
     localStorage.setItem('hexa_v19_map_data_m_solo_v12', JSON.stringify(data));
@@ -439,6 +467,9 @@ const app = {
   getStats(t) {
     const age = Number($(t+'Age').value) || 30;
     const h = Number($(t+'Height').value) || 170;
+    // Weight is read but unused in scoring as requested
+    const w = Number($(t+'Weight').value) || 70;
+
     const face = Number($(t+'Face').value);
     const body = Number($(t+'Body').value) || 7; 
     const hair = Number($(t+'Hair').value) || 7; 
@@ -456,7 +487,11 @@ const app = {
     const tattoo = Number($(t+'Tattoo').value);
     const mbti = $(t+'Mbti').value;
 
+    // Update Slider Display Text
     $(t+'FaceTxt').innerText = face.toFixed(1);
+    $(t+'BodyTxt').innerText = body.toFixed(1);
+    $(t+'HairTxt').innerText = hair.toFixed(1);
+    $(t+'FashionTxt').innerText = fashion.toFixed(1);
 
     let sAge = 5;
     if (age >= 20 && age <= 35) { sAge = 10; } 
@@ -473,11 +508,10 @@ const app = {
     const sSave = getLogScore(save, 1000, 30000); 
     const sReal = getLogScore(real, 5000, 300000);
     
-    const sBody = (sHeight * 0.5 + body * 0.5);
     const attrData = [sAge, sHeight, face, body, hair, fashion];
     const socialData = [sSal, sSave, sReal, edu, job, car];
 
-    return { attrData, socialData, age, h, face, body, hair, fashion, edu, sal, save, real, job, car, loc, smoke, tattoo, mbti };
+    return { attrData, socialData, age, h, w, face, body, hair, fashion, edu, sal, save, real, job, car, loc, smoke, tattoo, mbti };
   },
 
   calc() {
@@ -512,7 +546,7 @@ const app = {
     if(M.real > 50000) pros.push("🏢 자가/부동산 보유");
     if(M.job >= 9) pros.push("🏆 사회적 지위 높음");
     
-    if(M.face <= 4) cons.push("⚠️ 외모 매력도 보완 필요");
+    if(M.face <= 4) cons.push("⚠️ 얼굴 보완 필요");
     if(M.job <= 4) cons.push("⚠️ 직업 안정성 보완 필요");
     if(M.h >= 180) pros.push("훤칠한 키");
     
@@ -672,15 +706,22 @@ const app = {
     const r = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
     const t = 'm';
     $(t+'Age').value = r(28,38); $(t+'Height').value = r(170,188);
+    // Added Weight randomization (just simple range)
+    $(t+'Weight').value = r(60, 95);
+
     $(t+'Edu').value = r(4, 9); 
     $(t+'Sal').value = r(4500, 12000).toLocaleString();
     $(t+'Save').value = r(3000, 10000).toLocaleString(); 
     $(t+'RealType').value = ['none','apt','officetel','villa'][r(0,3)];
     $(t+'Real').value = $(t+'RealType').value === 'none' ? 0 : r(5000, 100000).toLocaleString();
     
+    // Updated Randomize for Sliders (1.0 - 10.0)
     $(t+'Face').value = (r(50,100)/10).toFixed(1);
-    $(t+'Body').value = r(3, 9); $(t+'Hair').value = r(5, 10);
-    $(t+'Fashion').value = r(5, 10); $(t+'Smoke').value = Math.random()>0.8 ? 1 : 0;
+    $(t+'Body').value = (r(40,90)/10).toFixed(1);
+    $(t+'Hair').value = (r(40,90)/10).toFixed(1);
+    $(t+'Fashion').value = (r(40,90)/10).toFixed(1);
+
+    $(t+'Smoke').value = Math.random()>0.8 ? 1 : 0;
     $(t+'Tattoo').value = r(0, 3);
     $(t+'Job').value = r(5, 10); $(t+'Car').value = r(4, 10);
     const rc = LOC_ZONES[r(0, LOC_ZONES.length-1)]; $(t+'Loc').value = rc; $(t+'LocBtn').innerText = rc;
@@ -691,10 +732,19 @@ const app = {
   reset() {
     const t = 'm';
     $(t+'Name').value = '나의 프로필'; $(t+'Age').value = 32; $(t+'Height').value = 175;
+    // Added Weight reset
+    $(t+'Weight').value = 70;
+
     $(t+'Sal').value = 6000; $(t+'Save').value = 8000; $(t+'Real').value = 0; $(t+'RealType').value = 'none';
     $(t+'Mbti').value = 'ISFJ'; $(t+'Smoke').value = 0; $(t+'Tattoo').value = 0;
-    $(t+'Edu').value = 6; $(t+'Face').value = 5.0; $(t+'Body').value = 7; $(t+'Hair').value = 7; $(t+'Fashion').value = 7;
-    $(t+'Job').value = 7; $(t+'Car').value = 6;
+    $(t+'Edu').value = 6; $(t+'Job').value = 7; $(t+'Car').value = 6;
+    
+    // Reset Sliders to defaults
+    $(t+'Face').value = 5.0; 
+    $(t+'Body').value = 7.0; 
+    $(t+'Hair').value = 7.0; 
+    $(t+'Fashion').value = 7.0;
+
     $(t+'Loc').value = '서울'; $(t+'LocBtn').innerText = '서울';
     $(t+'SalH').classList.remove('show'); $(t+'SaveH').classList.remove('show'); $(t+'RealH').classList.remove('show');
     localStorage.removeItem('hexa_v19_map_data_m_solo_v12');
@@ -722,6 +772,7 @@ const app = {
   capture() {
     window.scrollTo(0,0);
     const btn = event.target; btn.innerHTML = '⏳ 처리중...';
+    // Fixed typo: querySeflector -> querySelector
     html2canvas($('captureTarget').querySelector('.panel'), { backgroundColor: "#0f172a", scale: 2, ignoreElements: el => el.hasAttribute('data-html2canvas-ignore') }).then(cvs => {
       const a = document.createElement('a'); a.download = `Profile_Report_${Date.now()}.png`;
       a.href = cvs.toDataURL(); a.click(); btn.innerHTML = '📸 저장 (결과만)';
