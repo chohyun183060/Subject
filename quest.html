@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KCD2: 임무 일지 & 인물 도감</title>
+    <title>KCD2: 클라우드 임무 일지</title>
     <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet">
     <style>
+        /* --- STYLE START --- */
         :root {
             --bg-dark: #121212;
             --paper-main: #e3d2b4;
@@ -210,7 +211,7 @@
         .cal-event.completed { text-decoration: line-through; opacity: 0.6; filter: grayscale(50%); border-color: var(--success-color) !important; color: var(--success-color) !important; }
         .cal-event.failed { text-decoration: line-through; opacity: 0.6; filter: grayscale(50%); border-color: var(--fail-color) !important; color: var(--fail-color) !important; }
 
-        /* CHARACTER SIDEBAR (DISTINCT DESIGN) */
+        /* CHARACTER SIDEBAR */
         .char-header {
             font-family: 'MedievalSharp', serif; 
             font-size: 1.2rem; 
@@ -225,7 +226,6 @@
             padding-right: 5px;
         }
         
-        /* Category Header */
         .char-category-header {
             font-family: 'MedievalSharp', 'Noto Serif KR', serif;
             font-size: 0.95rem;
@@ -237,7 +237,6 @@
             font-weight: bold;
         }
 
-        /* Character "Card" Design */
         .char-card {
             background: rgba(0,0,0,0.07);
             border: 1px solid rgba(92, 74, 48, 0.4);
@@ -272,7 +271,6 @@
             position: absolute; top: 5px; right: 5px; 
             font-size: 0.7rem; padding: 1px 4px; border-radius: 3px; font-weight: bold;
         }
-        /* 5-Level Status Colors */
         .st-ally { color: #1b5e20; border: 2px solid #1b5e20; font-weight: 900; background: rgba(27, 94, 32, 0.1); }
         .st-friend { color: var(--success-color); border: 1px solid var(--success-color); }
         .st-neutral { color: var(--ink-faded); border: 1px solid var(--ink-faded); }
@@ -296,7 +294,6 @@
         .char-btn-mini.edit { color: #5d4037; border-color: #5d4037; }
         .char-btn-mini.edit:hover { background: #5d4037; color: white; }
 
-        /* Character Add Form (Slide-in) */
         .char-add-form {
             background: rgba(255,255,255,0.4);
             border: 1px solid var(--ink);
@@ -314,7 +311,6 @@
             margin-bottom: 5px; 
         }
 
-        /* Trash Character View */
         .trash-char-section {
             display: none;
             margin-top: 30px;
@@ -340,8 +336,23 @@
         .modal-btn { padding: 5px 15px; cursor: pointer; border: 1px solid var(--ink); background: transparent; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
         .modal-btn.yes { background: var(--red-accent); color: white; }
         .modal-btn.no { background: white; }
+        
+        /* ERROR OVERLAY FOR CONFIG */
+        #configErrorOverlay {
+            display: none;
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: #121212; z-index: 9999;
+            color: #e3d2b4; font-family: 'Noto Serif KR', serif;
+            flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 20px;
+        }
+        .config-box {
+            background: #2f2723; border: 2px solid #8b0000; padding: 30px; max-width: 600px; border-radius: 8px;
+        }
+        .code-block {
+            background: #000; color: #0f0; padding: 15px; text-align: left; font-family: monospace; font-size: 0.8rem; margin: 20px 0; overflow-x: auto;
+        }
 
-        /* Quest Action Modal Specifics */
         .q-detail-row { text-align: left; margin-bottom: 8px; font-family: 'Noto Serif KR', serif; font-size: 0.95rem; }
         .q-label { font-weight: bold; color: var(--ink-faded); font-size: 0.85rem; }
         .q-action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
@@ -352,17 +363,14 @@
         .q-btn.edit { border-color: #5d4037; color: #5d4037; } .q-btn.edit:hover { background: #5d4037; color: white; }
         .q-btn.delete { border-color: var(--trash-color); color: var(--trash-color); } .q-btn.delete:hover { background: var(--trash-color); color: white; }
 
-        /* DATA SYNC */
-        .sync-panel {
-            border-top: 1px dashed rgba(0,0,0,0.3); padding-top: 20px; margin-top: 30px;
-            display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+        .cloud-status {
+            text-align: center; font-size: 0.8rem; color: #555; margin-top: 15px;
+            display: flex; justify-content: center; align-items: center; gap: 5px;
         }
-        .sync-btn {
-            font-family: 'MedievalSharp', 'Noto Serif KR', serif;
-            background-color: #5d4037; color: #e3d2b4; border: 1px solid #3e2723;
-            padding: 8px 15px; cursor: pointer; border-radius: 4px; font-size: 0.9rem;
-        }
-        .sync-btn:hover { background-color: #3e2723; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+        .status-dot.active { background: var(--success-color); box-shadow: 0 0 5px var(--success-color); }
+        .status-dot.saving { background: #ff9800; }
+        .status-dot.error { background: #b71c1c; }
 
         @media (max-width: 768px) {
             .cal-layout { flex-direction: column; }
@@ -377,10 +385,34 @@
             .trash-controls { flex-direction: column; gap: 10px; }
             .trash-btn { width: 100%; }
         }
-
+        /* --- STYLE END --- */
     </style>
 </head>
 <body>
+
+    <!-- CONFIG ERROR OVERLAY -->
+    <div id="configErrorOverlay">
+        <div class="config-box">
+            <h2 style="color:#e3d2b4; margin-top:0;">⚠ Firebase 설정 필요</h2>
+            <p>GitHub 등 외부 환경에서 실행하려면 본인의 Firebase 서버 키가 필요합니다.</p>
+            <hr style="border-color:#6d5e52;">
+            <p style="font-size:0.9rem; text-align:left;">
+                1. <a href="https://console.firebase.google.com/" target="_blank" style="color:#c5a059;">Firebase 콘솔</a>에서 프로젝트를 생성하세요.<br>
+                2. '웹 앱'을 추가하여 config 객체를 복사하세요.<br>
+                3. Authentication 메뉴에서 <b>'익명(Anonymous)'</b> 로그인을 활성화하세요.<br>
+                4. 이 파일을 메모장으로 열어 아래 부분에 붙여넣으세요.
+            </p>
+            <div class="code-block">
+const userConfig = {
+    apiKey: "여기에_붙여넣으세요",
+    authDomain: "...",
+    projectId: "...",
+    ...
+};
+            </div>
+            <button onclick="location.reload()" style="background:#8b0000; color:white; border:none; padding:10px 20px; font-weight:bold; cursor:pointer;">설정 완료 후 새로고침</button>
+        </div>
+    </div>
 
     <div class="journal-container">
         <!-- HUD -->
@@ -475,7 +507,7 @@
                             <button class="tool-btn" onclick="toggleCharForm()">+ 추가</button>
                         </div>
                         
-                        <!-- Character Add Form (Hidden by default) -->
+                        <!-- Character Add Form -->
                         <div id="charAddForm" class="char-add-form">
                             <input type="text" id="charCategory" class="char-input" placeholder="분류 (Category) - 예: 동창, 동료" list="categoryList">
                             <datalist id="categoryList"></datalist>
@@ -483,7 +515,6 @@
                             <input type="text" id="charName" class="char-input" placeholder="이름 (Name)">
                             <input type="text" id="charRole" class="char-input" placeholder="직업/간단 역할 (Role)">
                             
-                            <!-- DETAILED DESCRIPTION TEXTAREA ADDED -->
                             <textarea id="charDesc" class="char-input" style="height:80px; resize:vertical; font-family:'Noto Serif KR', serif;" placeholder="상세 설명 (Detailed Description)"></textarea>
 
                             <select id="charStatus" class="char-input" style="height:35px;">
@@ -507,17 +538,20 @@
                 </div>
             </div>
 
-            <div id="emptyMsg" style="text-align:center; color:#777; margin-top:30px;">기록 없음</div>
+            <div id="emptyMsg" style="text-align:center; color:#777; margin-top:30px;">로딩 중...</div>
 
-            <!-- DATA SYNC BUTTONS -->
-            <div class="sync-panel">
-                <button class="sync-btn" onclick="exportData()">📤 데이터 내보내기</button>
-                <button class="sync-btn" onclick="openImportModal()">📥 데이터 불러오기</button>
+            <!-- CLOUD STATUS -->
+            <div class="cloud-status">
+                <div id="statusDot" class="status-dot"></div>
+                <span id="statusText">클라우드 연결 중...</span>
+            </div>
+            <div style="text-align:center; font-size:0.7rem; color:#777; margin-top:5px;">
+                User ID: <span id="displayUserId">...</span>
             </div>
         </div>
         
         <div style="text-align:center; margin-top:20px; cursor:pointer; color:#777; text-decoration:underline;" onclick="openModal('reset')">
-            ⚠ 모든 데이터 초기화
+            ⚠ 모든 데이터 초기화 (클라우드 포함)
         </div>
     </div>
 
@@ -529,19 +563,6 @@
             <div class="modal-buttons">
                 <button class="modal-btn yes" id="modalYesBtn">예</button>
                 <button class="modal-btn no" onclick="closeModal()">아니오</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- IMPORT MODAL -->
-    <div id="importModal" class="modal-overlay">
-        <div class="modal-box" style="width: 400px;">
-            <div class="modal-title">데이터 불러오기</div>
-            <p style="font-size:0.9rem; color:#555;">'데이터 내보내기'로 복사한 코드를 아래에 붙여넣으세요.</p>
-            <textarea id="importText" style="width:100%; height:100px; border:1px solid #5c4a30; font-family:monospace; font-size:0.8rem;"></textarea>
-            <div class="modal-buttons">
-                <button class="modal-btn yes" onclick="importData()">불러오기</button>
-                <button class="modal-btn no" onclick="document.getElementById('importModal').style.display='none'">취소</button>
             </div>
         </div>
     </div>
@@ -603,9 +624,69 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ==================================================================================
+        // [필수] GitHub 등 외부에서 사용 시 아래 userConfig 값을 본인의 Firebase 키로 교체하세요!
+        // ==================================================================================
+        const userConfig = {
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyC7tzMYnWdlIWxG_uf2TibEkdHGrhIMYWk",
+  authDomain: "my-kcd2-journal.firebaseapp.com",
+  projectId: "my-kcd2-journal",
+  storageBucket: "my-kcd2-journal.firebasestorage.app",
+  messagingSenderId: "739700170828",
+  appId: "1:739700170828:web:5c1366d5ed62975f0c94e9",
+  measurementId: "G-RBYTW05CX4"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+        };
+        // ==================================================================================
+
+        let firebaseConfig;
+        let appId = 'default-app-id';
+
+        // Check environment
+        if (typeof __firebase_config !== 'undefined') {
+            // Internal Preview Environment
+            firebaseConfig = JSON.parse(__firebase_config);
+            if(typeof __app_id !== 'undefined') appId = __app_id;
+        } else {
+            // External Environment (GitHub etc.)
+            // Check if user has replaced the placeholder
+            if (userConfig.apiKey === "YOUR_API_KEY_HERE") {
+                document.getElementById('configErrorOverlay').style.display = 'flex';
+                throw new Error("Firebase Config Not Set");
+            }
+            firebaseConfig = userConfig;
+            appId = 'kcd-journal-public'; // Default app ID for external usage
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let userId = null;
         let quests = [];
-        let characters = []; // New Character Array
+        let characters = [];
+        let locationData = null; // Store location here
+        let docRef = null;
+        
+        // --- UI Variables ---
         let currentTab = 'main';
         let editingId = null;
         let calendarEditId = null;
@@ -614,532 +695,138 @@
         let calDate = new Date();
         let selectedDetailId = null;
         let customStartDate = null;
-        
-        // Character Editing State
         let editingCharId = null;
 
-        window.onload = function() {
-            const saved = localStorage.getItem('kcd_quests_full'); 
-            if (saved) quests = JSON.parse(saved);
-            
-            // Load Characters
-            const savedChars = localStorage.getItem('kcd_characters');
-            if (savedChars) characters = JSON.parse(savedChars);
+        // --- Firebase Auth & Init ---
+        async function initAuth() {
+            // Internal Env: Use custom token if available
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                // External/Internal Fallback: Anonymous Auth
+                // NOTE: You must enable "Anonymous" provider in Firebase Console -> Authentication -> Sign-in method
+                try {
+                    await signInAnonymously(auth);
+                } catch (e) {
+                    console.error("Auth Error:", e);
+                    updateStatus("error", "로그인 실패 (익명 인증을 켰나요?)");
+                }
+            }
+        }
 
-            checkDeadlines(); setInterval(checkDeadlines, 60000); 
-            updateClock(); setInterval(updateClock, 1000);
-            initWeather(); switchTab('main');
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                document.getElementById('displayUserId').innerText = userId.substring(0, 8) + "...";
+                updateStatus("online", "클라우드 동기화 완료");
+                
+                // Firestore Path Logic
+                if (typeof __firebase_config !== 'undefined') {
+                    // Internal: Restricted Path
+                    docRef = doc(db, 'artifacts', appId, 'users', userId, 'journal', 'data');
+                } else {
+                    // External: You can use a simpler path or same structure
+                    // Using 'users' collection at root for simplicity in private projects
+                    docRef = doc(db, 'users', userId, 'journal', 'data');
+                }
+                
+                // Real-time Listener
+                onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        quests = data.quests || [];
+                        characters = data.characters || [];
+                        
+                        // Handle Location Sync
+                        if (data.location && (!locationData || locationData.name !== data.location.name)) {
+                            locationData = data.location;
+                            // Update UI if location changed
+                            fetchWeather(locationData.lat, locationData.lon, locationData.name);
+                        }
+                    } else {
+                        // New user: init empty
+                        quests = [];
+                        characters = [];
+                    }
+                    
+                    // Refresh UI
+                    if(currentTab === 'calendar') {
+                        renderCalendar();
+                        renderCharacters();
+                    } else if (currentTab === 'trash') {
+                        renderList();
+                        renderTrashCharacters();
+                    } else {
+                        renderList();
+                    }
+                    updateClock(); // Force update HUD
+                }, (error) => {
+                    console.error("Sync Error:", error);
+                    updateStatus("error", "동기화 오류 (DB 규칙 확인)");
+                });
+
+            } else {
+                // Waiting for auth...
+            }
+        });
+
+        // --- Core Functions Replacement ---
+
+        // Replaces localStorage.setItem with Firestore setDoc
+        async function saveToCloud() {
+            if (!docRef) return;
+            updateStatus("saving", "저장 중...");
+            try {
+                const dataToSave = {
+                    quests: quests,
+                    characters: characters
+                };
+                if(locationData) dataToSave.location = locationData;
+
+                await setDoc(docRef, dataToSave, { merge: true });
+                updateStatus("online", "저장됨");
+            } catch (e) {
+                console.error("Save Error:", e);
+                updateStatus("error", "저장 실패");
+            }
+        }
+
+        function updateStatus(state, text) {
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText');
+            txt.innerText = text;
+            dot.className = 'status-dot';
+            if(state === 'online') dot.classList.add('active');
+            else if(state === 'saving') dot.classList.add('saving');
+            else if(state === 'error') dot.classList.add('error');
+        }
+
+        // --- Existing Logic (Adapted) ---
+
+        window.initWeather = function() {
+            if (!locationData && navigator.geolocation) {
+                 navigator.geolocation.getCurrentPosition((p) => { 
+                     fetchWeather(p.coords.latitude, p.coords.longitude, "내 위치");
+                 }, () => { 
+                     document.getElementById('weatherDesc').innerText = "위치 설정 필요"; 
+                 });
+            }
         };
 
-        // --- IMPORT / EXPORT FUNCTIONS ---
-        function exportData() {
-            // Include both Quests and Characters
-            const exportObj = { quests: quests, characters: characters };
-            const dataStr = JSON.stringify(exportObj);
-            
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(dataStr).then(() => {
-                    alert("전체 데이터(임무+인물)가 클립보드에 복사되었습니다!");
-                }).catch(err => {
-                    prompt("자동 복사 실패. 코드를 복사하세요:", dataStr);
-                });
-            } else {
-                const ta = document.createElement("textarea");
-                ta.value = dataStr;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand("copy");
-                document.body.removeChild(ta);
-                alert("전체 데이터(임무+인물)가 클립보드에 복사되었습니다!");
-            }
-        }
-
-        function openImportModal() {
-            document.getElementById('importText').value = '';
-            document.getElementById('importModal').style.display = 'flex';
-        }
-
-        function importData() {
-            const str = document.getElementById('importText').value.trim();
-            if (!str) return alert("데이터 코드를 입력해주세요.");
-            try {
-                const parsed = JSON.parse(str);
-                // Backward compatibility check
-                if (Array.isArray(parsed)) {
-                    if (confirm("구버전(임무만 있음) 데이터입니다. 덮어쓰시겠습니까?")) {
-                        quests = parsed;
-                        save();
-                        location.reload();
-                    }
-                } else if (parsed.quests && parsed.characters) {
-                    if (confirm("현재 모든 데이터를 덮어쓰고 불러오시겠습니까?")) {
-                        quests = parsed.quests;
-                        characters = parsed.characters;
-                        save();
-                        saveCharacters();
-                        location.reload();
-                    }
-                } else {
-                    alert("올바르지 않은 데이터 형식입니다.");
-                }
-            } catch (e) {
-                alert("데이터 코드가 손상되었거나 잘못되었습니다.");
-            }
-        }
-        // ---------------------------------
-
-        // --- CHARACTER FUNCTIONS (NEW) ---
-        function saveCharacters() {
-            localStorage.setItem('kcd_characters', JSON.stringify(characters));
-        }
-
-        function toggleCharForm() {
-            const f = document.getElementById('charAddForm');
-            if (!f.classList.contains('open')) {
-                // Opening
-                f.classList.add('open');
-                document.getElementById('charCategory').focus();
-            } else {
-                // Closing - but if we are editing, just close and reset
-                resetCharForm();
-            }
-        }
-        
-        function resetCharForm() {
-            const f = document.getElementById('charAddForm');
-            f.classList.remove('open');
-            f.classList.remove('editing');
-            document.getElementById('charName').value = '';
-            document.getElementById('charRole').value = '';
-            document.getElementById('charDesc').value = ''; // Reset Desc
-            document.getElementById('charCategory').value = '';
-            document.getElementById('charStatus').value = 'neutral';
-            document.getElementById('charSubmitBtn').innerText = "등록";
-            document.getElementById('charSubmitBtn').style.background = "#8b0000";
-            editingCharId = null;
-        }
-
-        function addCharacter() {
-            const name = document.getElementById('charName').value.trim();
-            const role = document.getElementById('charRole').value.trim();
-            const desc = document.getElementById('charDesc').value; // Get Desc
-            const category = document.getElementById('charCategory').value.trim();
-            const status = document.getElementById('charStatus').value;
-
-            if (!name) return alert("이름을 입력하세요.");
-
-            if (editingCharId) {
-                // Update existing
-                const char = characters.find(c => c.id === editingCharId);
-                if (char) {
-                    char.name = name;
-                    char.role = role;
-                    char.desc = desc; // Update Desc
-                    char.category = category;
-                    char.status = status;
-                }
-                alert("인물 정보가 수정되었습니다.");
-            } else {
-                // Create new
-                characters.push({
-                    id: Date.now(),
-                    name: name,
-                    role: role,
-                    desc: desc, // Save Desc
-                    category: category,
-                    status: status,
-                    isDeleted: false // Added soft delete flag
-                });
-            }
-
-            resetCharForm();
-            saveCharacters();
-            renderCharacters();
-        }
-
-        function editCharacter(id) {
-            const char = characters.find(c => c.id === id);
-            if(!char) return;
-            
-            // Populate form
-            document.getElementById('charName').value = char.name;
-            document.getElementById('charRole').value = char.role;
-            document.getElementById('charDesc').value = char.desc || ''; // Populate Desc
-            document.getElementById('charCategory').value = char.category || '';
-            document.getElementById('charStatus').value = char.status;
-            
-            // Set state
-            editingCharId = id;
-            
-            // UI updates
-            const f = document.getElementById('charAddForm');
-            f.classList.add('open');
-            f.classList.add('editing');
-            const btn = document.getElementById('charSubmitBtn');
-            btn.innerText = "수정 저장";
-            btn.style.background = "#5d4037"; // Dark brown for edit mode
-            
-            document.getElementById('charName').focus();
-        }
-
-        function deleteCharacter(id) {
-            // Soft delete
-            const c = characters.find(x => x.id === id);
-            if (c) {
-                c.isDeleted = true;
-                saveCharacters();
-                renderCharacters();
-            }
-        }
-        
-        function restoreCharacter(id) {
-            const c = characters.find(x => x.id === id);
-            if (c) {
-                c.isDeleted = false;
-                saveCharacters();
-                renderCharacters(); // Sidebar update
-                if(currentTab === 'trash') renderTrashCharacters(); // Trash view update
-            }
-        }
-
-        function permDeleteCharacter(id) {
-            // Instead of confirm, use the modal for consistency and reliability
-            openModal('deleteCharPerm', id);
-        }
-
-        function renderCharacters() {
-            const list = document.getElementById('charList');
-            const datalist = document.getElementById('categoryList');
-            list.innerHTML = '';
-            datalist.innerHTML = '';
-            
-            // Filter out deleted characters
-            const activeChars = characters.filter(c => !c.isDeleted);
-            
-            // Populate Datalist with existing categories
-            const categories = new Set();
-            activeChars.forEach(c => {
-                if(c.category) categories.add(c.category);
-            });
-            categories.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat;
-                datalist.appendChild(opt);
-            });
-
-            if (activeChars.length === 0) {
-                list.innerHTML = '<div style="text-align:center; padding:20px; color:#777; font-size:0.8rem;">등록된 인물 없음</div>';
-                return;
-            }
-
-            // Group by Category
-            const groups = {};
-            activeChars.forEach(c => {
-                const cat = c.category ? c.category : "미분류 (Uncategorized)";
-                if(!groups[cat]) groups[cat] = [];
-                groups[cat].push(c);
-            });
-
-            // Sort keys to render nicely (Uncategorized last if possible, else alphabetical)
-            const sortedKeys = Object.keys(groups).sort();
-
-            sortedKeys.forEach(cat => {
-                const header = document.createElement('div');
-                header.className = 'char-category-header';
-                header.innerText = cat;
-                list.appendChild(header);
-
-                groups[cat].forEach(c => {
-                    const div = document.createElement('div');
-                    div.className = 'char-card';
-                    
-                    const initial = c.name.charAt(0);
-                    
-                    let stLabel = "중립";
-                    let stClass = "st-neutral";
-                    switch(c.status) {
-                        case 'ally': stLabel = "맹우"; stClass = "st-ally"; break;
-                        case 'friend': stLabel = "우호"; stClass = "st-friend"; break;
-                        case 'wary': stLabel = "경계"; stClass = "st-wary"; break;
-                        case 'enemy': stLabel = "적대"; stClass = "st-enemy"; break;
-                        default: stLabel = "중립"; stClass = "st-neutral";
-                    }
-
-                    div.innerHTML = `
-                        <div class="char-avatar">${initial}</div>
-                        <div class="char-info">
-                            <div class="char-name">${c.name}</div>
-                            <div class="char-role">${c.role || '설명 없음'}</div>
-                            ${c.desc ? `<div class="char-detail-text">${c.desc.replace(/\n/g, '<br>')}</div>` : ''}
-                        </div>
-                        <span class="char-status ${stClass}">${stLabel}</span>
-                        <div class="char-actions">
-                            <button class="char-btn-mini edit" onclick="editCharacter(${c.id})">✏️</button>
-                            <button class="char-btn-mini del" onclick="deleteCharacter(${c.id})">🗑️</button>
-                        </div>
-                    `;
-                    list.appendChild(div);
-                });
-            });
-        }
-        
-        function renderTrashCharacters() {
-            const grid = document.getElementById('trashCharGrid');
-            grid.innerHTML = '';
-            
-            const deletedChars = characters.filter(c => c.isDeleted);
-            if(deletedChars.length === 0) {
-                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#777;">삭제된 인물 없음</div>';
-                return;
-            }
-            
-            deletedChars.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'char-card trash-item';
-                
-                const initial = c.name.charAt(0);
-                
-                let stLabel = "중립";
-                let stClass = "st-neutral";
-                switch(c.status) {
-                    case 'ally': stLabel = "맹우"; stClass = "st-ally"; break;
-                    case 'friend': stLabel = "우호"; stClass = "st-friend"; break;
-                    case 'wary': stLabel = "경계"; stClass = "st-wary"; break;
-                    case 'enemy': stLabel = "적대"; stClass = "st-enemy"; break;
-                    default: stLabel = "중립"; stClass = "st-neutral";
-                }
-
-                div.innerHTML = `
-                    <div class="char-avatar">${initial}</div>
-                    <div class="char-info">
-                        <div class="char-name">${c.name}</div>
-                        <div class="char-role">${c.role || '설명 없음'}</div>
-                        ${c.category ? `<div style="font-size:0.7rem; color:#6d5e52;">[${c.category}]</div>` : ''}
-                        ${c.desc ? `<div class="char-detail-text">${c.desc.replace(/\n/g, '<br>')}</div>` : ''}
-                    </div>
-                    <span class="char-status ${stClass}">${stLabel}</span>
-                    <div class="trash-actions">
-                        <button class="char-btn-mini btn-restore-mini" onclick="restoreCharacter(${c.id})">♻</button>
-                        <button class="char-btn-mini btn-perm-mini" onclick="permDeleteCharacter(${c.id})">🔥</button>
-                    </div>
-                `;
-                grid.appendChild(div);
-            });
-        }
-        // ---------------------------------
-
-        function updateClock() {
-            const now = new Date();
-            const year = now.getFullYear(); const month = (now.getMonth() + 1).toString().padStart(2, '0'); const date = now.getDate().toString().padStart(2, '0');
-            const days = ['일', '월', '화', '수', '목', '금', '토']; const dayName = days[now.getDay()];
-            const hours = now.getHours(); const minutes = now.getMinutes(); const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-            let phase = ""; if (hours >= 5 && hours < 11) phase = "아침"; else if (hours >= 11 && hours < 14) phase = "정오"; else if (hours >= 14 && hours < 18) phase = "오후"; else if (hours >= 18 && hours < 22) phase = "저녁"; else phase = "밤";
-            document.getElementById('clockDate').innerText = `${year}. ${month}. ${date}. (${dayName})`;
-            document.getElementById('clockTime').innerText = timeStr; document.getElementById('clockPhase').innerText = phase;
-        }
-
-        function renderCalendar() {
-            const grid = document.getElementById('calendarGrid');
-            grid.innerHTML = ''; 
-            const days = ["일", "월", "화", "수", "목", "금", "토"];
-            days.forEach(d => { const h = document.createElement('div'); h.className = 'cal-day-name'; h.innerText = d; grid.appendChild(h); });
-
-            const year = calDate.getFullYear(); const month = calDate.getMonth();
-            document.getElementById('calTitle').innerText = `${year}년 ${month + 1}월`;
-
-            const firstDay = new Date(year, month, 1).getDay(); const lastDate = new Date(year, month + 1, 0).getDate(); const today = new Date();
-
-            for (let i = 0; i < firstDay; i++) { const c = document.createElement('div'); c.className = 'cal-day empty'; grid.appendChild(c); }
-
-            for (let d = 1; d <= lastDate; d++) {
-                const cell = document.createElement('div'); cell.className = 'cal-day';
-                if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cell.classList.add('today');
-                cell.onclick = (e) => { if(e.target.classList.contains('cal-event')) return; openQuestFormModal(null, year, month, d); };
-                const dayNum = document.createElement('div'); dayNum.className = 'day-number'; dayNum.innerText = d; cell.appendChild(dayNum);
-
-                const currentDayStr = new Date(year, month, d).toDateString();
-                let startedToday = quests.filter(q => new Date(q.id).toDateString() === currentDayStr && q.status !== 'deleted');
-                let deadlineToday = quests.filter(q => q.deadline && new Date(q.deadline).toDateString() === currentDayStr && q.status !== 'deleted');
-
-                const typePriority = { 'main': 1, 'side': 2, 'task': 3 };
-                startedToday.sort((a, b) => typePriority[a.type] - typePriority[b.type]);
-                deadlineToday.sort((a, b) => typePriority[a.type] - typePriority[b.type]);
-
-                const addEvent = (q, isDeadline) => {
-                    const evt = document.createElement('div');
-                    let baseClass = `cal-event evt-${q.type}`;
-                    if(isDeadline) baseClass += ' evt-deadline'; else baseClass += ' evt-start';
-                    if(q.status === 'completed') baseClass += ' completed'; if(q.status === 'failed') baseClass += ' failed';
-                    evt.className = baseClass;
-                    const init = getInitialData(q.type).char;
-                    evt.innerText = isDeadline ? `⏳ ${q.title}` : `${init}. ${q.title}`;
-                    evt.onclick = (e) => { e.stopPropagation(); openDetailModal(q.id); };
-                    cell.appendChild(evt);
-                };
-                startedToday.forEach(q => addEvent(q, false)); deadlineToday.forEach(q => addEvent(q, true));
-                grid.appendChild(cell);
-            }
-        }
-        function changeMonth(delta) { calDate.setMonth(calDate.getMonth() + delta); renderCalendar(); }
-
-        function getLocalISOString(date) {
-            const offset = date.getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(date - offset)).toISOString().slice(0, 16);
-            return localISOTime;
-        }
-
-        function openQuestFormModal(id = null, year, month, day) {
-            document.getElementById('questFormModal').style.display = 'flex'; calendarEditId = id;
-            if (id) {
-                const q = quests.find(x => x.id === id); document.getElementById('formModalTitle').innerText = "임무 수정";
-                document.getElementById('modalQTitle').value = q.title; document.getElementById('modalQDesc').value = q.desc; document.getElementById('modalQType').value = q.type;
-                
-                // Set Deadline
-                let dlIso = ""; if(q.deadline) dlIso = getLocalISOString(new Date(q.deadline));
-                document.getElementById('modalQDeadline').value = dlIso;
-
-                // Set Start Date (using ID as time)
-                let startIso = getLocalISOString(new Date(q.id));
-                document.getElementById('modalQStart').value = startIso;
-
-                customStartDate = null;
-            } else {
-                document.getElementById('formModalTitle').innerText = "새 임무 작성"; document.getElementById('modalQTitle').value = ''; document.getElementById('modalQDesc').value = ''; document.getElementById('modalQType').value = 'main';
-                
-                const yyyy = year; const mm = String(month + 1).padStart(2, '0'); const dd = String(day).padStart(2, '0');
-                document.getElementById('modalQDeadline').value = `${yyyy}-${mm}-${dd}T12:00`;
-                
-                const now = new Date();
-                // Set clicked date as default start in modal
-                const clickedDate = new Date(year, month, day, now.getHours(), now.getMinutes());
-                document.getElementById('modalQStart').value = getLocalISOString(clickedDate);
-                
-                customStartDate = clickedDate.getTime();
-            }
-            document.getElementById('modalQTitle').focus();
-        }
-        function closeQuestFormModal() { document.getElementById('questFormModal').style.display = 'none'; calendarEditId = null; customStartDate = null; }
-        
-        function submitQuestForm() {
-            const title = document.getElementById('modalQTitle').value.trim(); const desc = document.getElementById('modalQDesc').value; const type = document.getElementById('modalQType').value; 
-            const deadlineVal = document.getElementById('modalQDeadline').value; const deadline = deadlineVal ? new Date(deadlineVal).getTime() : null;
-            const startVal = document.getElementById('modalQStart').value;
-            
-            if(!title) return alert("제목을 입력해주세요.");
-            
-            if (calendarEditId) { 
-                const q = quests.find(x => x.id === calendarEditId); 
-                if(q) { 
-                    q.title = title; q.desc = desc; q.type = type; q.deadline = deadline; 
-                    if(startVal) {
-                        q.id = new Date(startVal).getTime(); // Update Start Time (ID)
-                        quests.sort((a, b) => b.id - a.id); // Re-sort
-                    }
-                } 
-            } else { 
-                let newId = customStartDate ? customStartDate : Date.now();
-                if(startVal) newId = new Date(startVal).getTime();
-                
-                quests.unshift({ id: newId, title: title, desc: desc, type: type, deadline: deadline, status: 'active', open: false });
-                quests.sort((a, b) => b.id - a.id); // Re-sort
-            }
-            save(); closeQuestFormModal(); checkDeadlines(); renderCalendar();
-        }
-
-        function getLocalizedStatus(status) {
-            switch(status) {
-                case 'active': return '진행 중';
-                case 'completed': return '성공함';
-                case 'failed': return '실패함';
-                case 'deleted': return '삭제됨';
-                default: return status;
-            }
-        }
-
-        function getLocalizedType(type) {
-            switch(type) {
-                case 'main': return '메인';
-                case 'side': return '서브';
-                case 'task': return '기타';
-                default: return type;
-            }
-        }
-
-        function openDetailModal(id) {
-            const q = quests.find(x => x.id === id); if(!q) return; selectedDetailId = id;
-            document.getElementById('detailTitle').innerText = q.title; 
-            const locStatus = getLocalizedStatus(q.status);
-            document.getElementById('detailStatus').innerText = locStatus;
-            document.getElementById('detailStatus').style.color = q.status === 'completed' ? 'var(--success-color)' : (q.status === 'failed' ? 'var(--fail-color)' : 'var(--ink)');
-            document.getElementById('detailType').innerText = getLocalizedType(q.type); 
-            document.getElementById('detailStart').innerText = formatDate(q.id);
-            
-            // 상태에 따른 라벨 변경 및 시간 표시 (마감 vs 종료)
-            let label = "마감:";
-            let timeToShow = q.deadline;
-            
-            if (q.status === 'completed' || q.status === 'failed') {
-                label = "종료:";
-                timeToShow = q.finishedAt ? q.finishedAt : q.deadline;
-            }
-
-            document.getElementById('detailDeadlineLabel').innerText = label;
-            document.getElementById('detailDeadline').innerText = timeToShow ? formatDate(timeToShow) : "-";
-            
-            document.getElementById('detailDesc').innerHTML = parseDescription(q.desc, q.id);
-            
-            const btnContainer = document.getElementById('detailBtns'); btnContainer.innerHTML = '';
-            
-            const editBtn = `<button class="q-btn edit" onclick="detailEdit()">✏️ 수정</button>`;
-            const deleteBtn = `<button class="q-btn delete" onclick="detailAction('delete')">🗑️ 삭제</button>`;
-
-            if (q.status === 'active') {
-                btnContainer.innerHTML += `<button class="q-btn complete" onclick="detailAction('completed')">✅ 성공</button>`;
-                btnContainer.innerHTML += `<button class="q-btn fail" onclick="detailAction('failed')">❌ 실패</button>`;
-                btnContainer.innerHTML += editBtn;
-            } else if (q.status === 'deleted') {
-            } else {
-                btnContainer.innerHTML += `<button class="q-btn edit" onclick="detailAction('active')">↺ 재활성</button>`;
-                btnContainer.innerHTML += editBtn; 
-            }
-            
-            if(q.status !== 'deleted') btnContainer.innerHTML += deleteBtn;
-            
-            document.getElementById('questDetailModal').style.display = 'flex';
-        }
-        function closeDetailModal() { document.getElementById('questDetailModal').style.display = 'none'; selectedDetailId = null; }
-        
-        function detailAction(action) {
-            if(!selectedDetailId) return;
-            
-            // FIX: If action is delete, use moveToTrash to ensure proper state transition
-            if (action === 'delete') {
-                moveToTrash(selectedDetailId);
-            } else {
-                setStatus(selectedDetailId, action); 
-            }
-            closeDetailModal();
-        }
-        
-        function detailEdit() { if(!selectedDetailId) return; const id = selectedDetailId; closeDetailModal(); openQuestFormModal(id); }
-
-        function checkDeadlines() {
-            const now = Date.now(); let changed = false; 
-            quests.forEach(q => { 
-                if (q.status === 'active' && q.deadline && now > q.deadline) { 
-                    q.status = 'failed'; 
-                    q.finishedAt = q.deadline; 
-                    changed = true; 
-                } 
-            });
-            if (changed) { save(); if(currentTab === 'calendar') renderCalendar(); else renderList(); }
-        }
-
-        function switchTab(tab) {
+        // --- Expose functions to window for HTML events ---
+        window.switchTab = function(tab) {
             currentTab = tab; editingId = null;
             document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); if(b.dataset.tab === tab) b.classList.add('active'); });
-            const p = document.getElementById('parchment'); document.getElementById('sectionTitle').innerText = {'main':'메인','side':'서브','task':'기타','completed':'성공','failed':'실패','trash':'휴지통','calendar':'달력 & 인물'}[tab];
-            const listEl = document.getElementById('list'); const inputArea = document.getElementById('inputArea'); const calendarWrapper = document.getElementById('calendarWrapper'); const emptyMsg = document.getElementById('emptyMsg');
+            const p = document.getElementById('parchment'); 
+            const titleMap = {'main':'메인','side':'서브','task':'기타','completed':'성공','failed':'실패','trash':'휴지통','calendar':'달력 & 인물'};
+            document.getElementById('sectionTitle').innerText = titleMap[tab];
+            
+            const listEl = document.getElementById('list'); 
+            const inputArea = document.getElementById('inputArea'); 
+            const calendarWrapper = document.getElementById('calendarWrapper'); 
+            const emptyMsg = document.getElementById('emptyMsg');
             const trashControls = document.getElementById('trashControls');
             const trashCharSection = document.getElementById('trashCharSection');
             
@@ -1150,102 +837,329 @@
             if (tab === 'calendar') { 
                 inputArea.classList.add('hidden'); listEl.style.display = 'none'; calendarWrapper.classList.add('show'); 
                 renderCalendar(); 
-                renderCharacters(); // Render characters when tab is opened
+                renderCharacters(); 
             } else { 
                 if(tab === 'trash') {
                     p.classList.add('trash-mode');
                     trashControls.classList.add('show');
-                    trashCharSection.style.display = 'block'; // Show deleted chars in trash
+                    trashCharSection.style.display = 'block';
                     renderTrashCharacters();
                 }
                 if(['completed', 'failed', 'trash'].includes(tab)) inputArea.classList.add('hidden'); 
                 else document.getElementById('qType').value = tab; 
                 renderList(); 
             }
-        }
-        function initWeather() {
-            const savedLoc = localStorage.getItem('kcd_location'); if (savedLoc) { const loc = JSON.parse(savedLoc); fetchWeather(loc.lat, loc.lon, loc.name); }
-            else { if (!navigator.geolocation) { document.getElementById('weatherDesc').innerText = "위치 설정 필요"; return; } navigator.geolocation.getCurrentPosition((p) => { fetchWeather(p.coords.latitude, p.coords.longitude, "내 위치"); }, () => { document.getElementById('weatherDesc').innerText = "위치 설정 필요"; }); }
-        }
-        function openWeatherModal() { document.getElementById('weatherModal').style.display = 'flex'; document.getElementById('cityInput').focus(); }
-        function closeWeatherModal() { document.getElementById('weatherModal').style.display = 'none'; }
-        function searchLocation() {
+        };
+
+        window.toggleCharForm = function() {
+            const f = document.getElementById('charAddForm');
+            if (!f.classList.contains('open')) {
+                f.classList.add('open');
+                document.getElementById('charCategory').focus();
+            } else {
+                resetCharForm();
+            }
+        };
+        
+        window.resetCharForm = function() {
+            const f = document.getElementById('charAddForm');
+            f.classList.remove('open');
+            f.classList.remove('editing');
+            document.getElementById('charName').value = '';
+            document.getElementById('charRole').value = '';
+            document.getElementById('charDesc').value = ''; 
+            document.getElementById('charCategory').value = '';
+            document.getElementById('charStatus').value = 'neutral';
+            document.getElementById('charSubmitBtn').innerText = "등록";
+            document.getElementById('charSubmitBtn').style.background = "#8b0000";
+            editingCharId = null;
+        };
+
+        window.addCharacter = function() {
+            const name = document.getElementById('charName').value.trim();
+            const role = document.getElementById('charRole').value.trim();
+            const desc = document.getElementById('charDesc').value;
+            const category = document.getElementById('charCategory').value.trim();
+            const status = document.getElementById('charStatus').value;
+
+            if (!name) return alert("이름을 입력하세요.");
+
+            if (editingCharId) {
+                const char = characters.find(c => c.id === editingCharId);
+                if (char) {
+                    char.name = name; char.role = role; char.desc = desc; char.category = category; char.status = status;
+                }
+            } else {
+                characters.push({
+                    id: Date.now(), name: name, role: role, desc: desc, category: category, status: status, isDeleted: false
+                });
+            }
+
+            resetCharForm();
+            saveToCloud();
+        };
+
+        window.editCharacter = function(id) {
+            const char = characters.find(c => c.id === id);
+            if(!char) return;
+            document.getElementById('charName').value = char.name;
+            document.getElementById('charRole').value = char.role;
+            document.getElementById('charDesc').value = char.desc || ''; 
+            document.getElementById('charCategory').value = char.category || '';
+            document.getElementById('charStatus').value = char.status;
+            editingCharId = id;
+            const f = document.getElementById('charAddForm');
+            f.classList.add('open');
+            f.classList.add('editing');
+            const btn = document.getElementById('charSubmitBtn');
+            btn.innerText = "수정 저장";
+            btn.style.background = "#5d4037"; 
+            document.getElementById('charName').focus();
+        };
+
+        window.deleteCharacter = function(id) {
+            const c = characters.find(x => x.id === id);
+            if (c) { c.isDeleted = true; saveToCloud(); }
+        };
+        
+        window.restoreCharacter = function(id) {
+            const c = characters.find(x => x.id === id);
+            if (c) { c.isDeleted = false; saveToCloud(); }
+        };
+
+        window.permDeleteCharacter = function(id) { openModal('deleteCharPerm', id); };
+
+        window.renderCharacters = function() {
+            const list = document.getElementById('charList');
+            const datalist = document.getElementById('categoryList');
+            list.innerHTML = ''; datalist.innerHTML = '';
+            
+            const activeChars = characters.filter(c => !c.isDeleted);
+            
+            const categories = new Set();
+            activeChars.forEach(c => { if(c.category) categories.add(c.category); });
+            categories.forEach(cat => {
+                const opt = document.createElement('option'); opt.value = cat; datalist.appendChild(opt);
+            });
+
+            if (activeChars.length === 0) {
+                list.innerHTML = '<div style="text-align:center; padding:20px; color:#777; font-size:0.8rem;">등록된 인물 없음</div>';
+                return;
+            }
+
+            const groups = {};
+            activeChars.forEach(c => {
+                const cat = c.category ? c.category : "미분류 (Uncategorized)";
+                if(!groups[cat]) groups[cat] = [];
+                groups[cat].push(c);
+            });
+
+            Object.keys(groups).sort().forEach(cat => {
+                const header = document.createElement('div'); header.className = 'char-category-header'; header.innerText = cat; list.appendChild(header);
+                groups[cat].forEach(c => {
+                    const div = document.createElement('div'); div.className = 'char-card';
+                    const initial = c.name.charAt(0);
+                    let stLabel = "중립"; let stClass = "st-neutral";
+                    switch(c.status) {
+                        case 'ally': stLabel = "맹우"; stClass = "st-ally"; break;
+                        case 'friend': stLabel = "우호"; stClass = "st-friend"; break;
+                        case 'wary': stLabel = "경계"; stClass = "st-wary"; break;
+                        case 'enemy': stLabel = "적대"; stClass = "st-enemy"; break;
+                        default: stLabel = "중립"; stClass = "st-neutral";
+                    }
+                    div.innerHTML = `
+                        <div class="char-avatar">${initial}</div>
+                        <div class="char-info"><div class="char-name">${c.name}</div><div class="char-role">${c.role || '설명 없음'}</div>${c.desc ? `<div class="char-detail-text">${c.desc.replace(/\n/g, '<br>')}</div>` : ''}</div>
+                        <span class="char-status ${stClass}">${stLabel}</span>
+                        <div class="char-actions"><button class="char-btn-mini edit" onclick="editCharacter(${c.id})">✏️</button><button class="char-btn-mini del" onclick="deleteCharacter(${c.id})">🗑️</button></div>
+                    `;
+                    list.appendChild(div);
+                });
+            });
+        };
+        
+        window.renderTrashCharacters = function() {
+            const grid = document.getElementById('trashCharGrid'); grid.innerHTML = '';
+            const deletedChars = characters.filter(c => c.isDeleted);
+            if(deletedChars.length === 0) { grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#777;">삭제된 인물 없음</div>'; return; }
+            deletedChars.forEach(c => {
+                const div = document.createElement('div'); div.className = 'char-card trash-item';
+                const initial = c.name.charAt(0);
+                div.innerHTML = `<div class="char-avatar">${initial}</div><div class="char-info"><div class="char-name">${c.name}</div><div class="char-role">${c.role || '설명 없음'}</div></div><div class="trash-actions"><button class="char-btn-mini btn-restore-mini" onclick="restoreCharacter(${c.id})">♻</button><button class="char-btn-mini btn-perm-mini" onclick="permDeleteCharacter(${c.id})">🔥</button></div>`;
+                grid.appendChild(div);
+            });
+        };
+
+        window.updateClock = function() {
+            const now = new Date();
+            const year = now.getFullYear(); const month = (now.getMonth() + 1).toString().padStart(2, '0'); const date = now.getDate().toString().padStart(2, '0');
+            const days = ['일', '월', '화', '수', '목', '금', '토']; const dayName = days[now.getDay()];
+            const hours = now.getHours(); const minutes = now.getMinutes(); const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            let phase = ""; if (hours >= 5 && hours < 11) phase = "아침"; else if (hours >= 11 && hours < 14) phase = "정오"; else if (hours >= 14 && hours < 18) phase = "오후"; else if (hours >= 18 && hours < 22) phase = "저녁"; else phase = "밤";
+            document.getElementById('clockDate').innerText = `${year}. ${month}. ${date}. (${dayName})`;
+            document.getElementById('clockTime').innerText = timeStr; document.getElementById('clockPhase').innerText = phase;
+        };
+
+        window.renderCalendar = function() {
+            const grid = document.getElementById('calendarGrid'); grid.innerHTML = ''; 
+            const days = ["일", "월", "화", "수", "목", "금", "토"];
+            days.forEach(d => { const h = document.createElement('div'); h.className = 'cal-day-name'; h.innerText = d; grid.appendChild(h); });
+            const year = calDate.getFullYear(); const month = calDate.getMonth();
+            document.getElementById('calTitle').innerText = `${year}년 ${month + 1}월`;
+            const firstDay = new Date(year, month, 1).getDay(); const lastDate = new Date(year, month + 1, 0).getDate(); const today = new Date();
+            for (let i = 0; i < firstDay; i++) { const c = document.createElement('div'); c.className = 'cal-day empty'; grid.appendChild(c); }
+            for (let d = 1; d <= lastDate; d++) {
+                const cell = document.createElement('div'); cell.className = 'cal-day';
+                if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cell.classList.add('today');
+                cell.onclick = (e) => { if(e.target.classList.contains('cal-event')) return; openQuestFormModal(null, year, month, d); };
+                const dayNum = document.createElement('div'); dayNum.className = 'day-number'; dayNum.innerText = d; cell.appendChild(dayNum);
+                const currentDayStr = new Date(year, month, d).toDateString();
+                let startedToday = quests.filter(q => new Date(q.id).toDateString() === currentDayStr && q.status !== 'deleted');
+                let deadlineToday = quests.filter(q => q.deadline && new Date(q.deadline).toDateString() === currentDayStr && q.status !== 'deleted');
+                const addEvent = (q, isDeadline) => {
+                    const evt = document.createElement('div');
+                    let baseClass = `cal-event evt-${q.type}`;
+                    if(isDeadline) baseClass += ' evt-deadline'; else baseClass += ' evt-start';
+                    if(q.status === 'completed') baseClass += ' completed'; if(q.status === 'failed') baseClass += ' failed';
+                    evt.className = baseClass; evt.innerText = isDeadline ? `⏳ ${q.title}` : `★ ${q.title}`;
+                    evt.onclick = (e) => { e.stopPropagation(); openDetailModal(q.id); };
+                    cell.appendChild(evt);
+                };
+                startedToday.forEach(q => addEvent(q, false)); deadlineToday.forEach(q => addEvent(q, true));
+                grid.appendChild(cell);
+            }
+        };
+
+        window.changeMonth = function(delta) { calDate.setMonth(calDate.getMonth() + delta); renderCalendar(); };
+        window.getLocalISOString = function(date) { const offset = date.getTimezoneOffset() * 60000; return (new Date(date - offset)).toISOString().slice(0, 16); };
+
+        window.openQuestFormModal = function(id = null, year, month, day) {
+            document.getElementById('questFormModal').style.display = 'flex'; calendarEditId = id;
+            if (id) {
+                const q = quests.find(x => x.id === id); document.getElementById('formModalTitle').innerText = "임무 수정";
+                document.getElementById('modalQTitle').value = q.title; document.getElementById('modalQDesc').value = q.desc; document.getElementById('modalQType').value = q.type;
+                let dlIso = ""; if(q.deadline) dlIso = getLocalISOString(new Date(q.deadline));
+                document.getElementById('modalQDeadline').value = dlIso;
+                let startIso = getLocalISOString(new Date(q.id));
+                document.getElementById('modalQStart').value = startIso;
+                customStartDate = null;
+            } else {
+                document.getElementById('formModalTitle').innerText = "새 임무 작성"; document.getElementById('modalQTitle').value = ''; document.getElementById('modalQDesc').value = ''; document.getElementById('modalQType').value = 'main';
+                const yyyy = year; const mm = String(month + 1).padStart(2, '0'); const dd = String(day).padStart(2, '0');
+                document.getElementById('modalQDeadline').value = `${yyyy}-${mm}-${dd}T12:00`;
+                const clickedDate = new Date(year, month, day, 9, 0); // Default 9 AM
+                document.getElementById('modalQStart').value = getLocalISOString(clickedDate);
+                customStartDate = clickedDate.getTime();
+            }
+            document.getElementById('modalQTitle').focus();
+        };
+
+        window.closeQuestFormModal = function() { document.getElementById('questFormModal').style.display = 'none'; calendarEditId = null; customStartDate = null; };
+
+        window.submitQuestForm = function() {
+            const title = document.getElementById('modalQTitle').value.trim(); const desc = document.getElementById('modalQDesc').value; const type = document.getElementById('modalQType').value; 
+            const deadlineVal = document.getElementById('modalQDeadline').value; const deadline = deadlineVal ? new Date(deadlineVal).getTime() : null;
+            const startVal = document.getElementById('modalQStart').value;
+            if(!title) return alert("제목을 입력해주세요.");
+            if (calendarEditId) { 
+                const q = quests.find(x => x.id === calendarEditId); 
+                if(q) { 
+                    q.title = title; q.desc = desc; q.type = type; q.deadline = deadline; 
+                    if(startVal) { q.id = new Date(startVal).getTime(); quests.sort((a, b) => b.id - a.id); }
+                } 
+            } else { 
+                let newId = customStartDate ? customStartDate : Date.now();
+                if(startVal) newId = new Date(startVal).getTime();
+                quests.unshift({ id: newId, title: title, desc: desc, type: type, deadline: deadline, status: 'active', open: false });
+                quests.sort((a, b) => b.id - a.id);
+            }
+            saveToCloud(); closeQuestFormModal();
+        };
+
+        window.openDetailModal = function(id) {
+            const q = quests.find(x => x.id === id); if(!q) return; selectedDetailId = id;
+            document.getElementById('detailTitle').innerText = q.title; 
+            const statusMap = {'active':'진행 중', 'completed':'성공함', 'failed':'실패함', 'deleted':'삭제됨'};
+            document.getElementById('detailStatus').innerText = statusMap[q.status] || q.status;
+            document.getElementById('detailType').innerText = q.type.toUpperCase();
+            document.getElementById('detailStart').innerText = formatDate(q.id);
+            let timeToShow = q.deadline;
+            if (q.status === 'completed' || q.status === 'failed') timeToShow = q.finishedAt ? q.finishedAt : q.deadline;
+            document.getElementById('detailDeadline').innerText = timeToShow ? formatDate(timeToShow) : "-";
+            document.getElementById('detailDesc').innerHTML = parseDescription(q.desc, q.id);
+            
+            const btnContainer = document.getElementById('detailBtns'); btnContainer.innerHTML = '';
+            if (q.status === 'active') {
+                btnContainer.innerHTML += `<button class="q-btn complete" onclick="detailAction('completed')">✅ 성공</button><button class="q-btn fail" onclick="detailAction('failed')">❌ 실패</button><button class="q-btn edit" onclick="detailEdit()">✏️ 수정</button>`;
+            } else if (q.status !== 'deleted') {
+                btnContainer.innerHTML += `<button class="q-btn edit" onclick="detailAction('active')">↺ 재활성</button><button class="q-btn edit" onclick="detailEdit()">✏️ 수정</button>`;
+            }
+            if(q.status !== 'deleted') btnContainer.innerHTML += `<button class="q-btn delete" onclick="detailAction('delete')">🗑️ 삭제</button>`;
+            document.getElementById('questDetailModal').style.display = 'flex';
+        };
+
+        window.closeDetailModal = function() { document.getElementById('questDetailModal').style.display = 'none'; selectedDetailId = null; };
+        window.detailAction = function(action) {
+            if(!selectedDetailId) return;
+            if (action === 'delete') moveToTrash(selectedDetailId);
+            else setStatus(selectedDetailId, action);
+            closeDetailModal();
+        };
+        window.detailEdit = function() { if(!selectedDetailId) return; const id = selectedDetailId; closeDetailModal(); openQuestFormModal(id); };
+
+        window.openWeatherModal = function() { document.getElementById('weatherModal').style.display = 'flex'; document.getElementById('cityInput').focus(); };
+        window.closeWeatherModal = function() { document.getElementById('weatherModal').style.display = 'none'; };
+        
+        window.searchLocation = function() {
             const city = document.getElementById('cityInput').value.trim(); if(!city) return;
             fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1&language=en&format=json`).then(res=>res.json()).then(data=>{
-                if(data.results && data.results.length>0) { const res=data.results[0]; localStorage.setItem('kcd_location', JSON.stringify({lat:res.latitude, lon:res.longitude, name:res.name})); fetchWeather(res.latitude, res.longitude, res.name); closeWeatherModal(); } else alert("도시를 찾을 수 없습니다.");
+                if(data.results && data.results.length>0) { 
+                    const res=data.results[0]; 
+                    locationData = {lat:res.latitude, lon:res.longitude, name:res.name}; 
+                    saveToCloud(); 
+                    fetchWeather(res.latitude, res.longitude, res.name); 
+                    closeWeatherModal(); 
+                } else alert("도시를 찾을 수 없습니다.");
             }).catch(()=>alert("오류 발생"));
-        }
-        function fetchWeather(lat, lon, name) {
+        };
+        
+        window.fetchWeather = function(lat, lon, name) {
             document.getElementById('weatherDesc').innerText = "갱신 중...";
             fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`).then(res=>res.json()).then(data=>{
                 const w = data.current_weather; document.getElementById('weatherTemp').innerText = `${w.temperature}°C`;
                 const info = getWeatherInfo(w.weathercode); document.getElementById('weatherIcon').innerText = info.icon; document.getElementById('weatherDesc').innerText = `${name}: ${info.desc}`;
             });
-        }
-        function getWeatherInfo(code) { if(code===0) return {icon:"☀️", desc:"맑음"}; if(code<=3) return {icon:"⛅", desc:"구름"}; if(code<=48) return {icon:"🌫️", desc:"안개"}; if(code<=55) return {icon:"🌦️", desc:"이슬비"}; if(code<=67) return {icon:"🌧️", desc:"비"}; if(code<=77) return {icon:"🌨️", desc:"눈"}; if(code<=82) return {icon:"☔", desc:"소나기"}; if(code<=99) return {icon:"⚡", desc:"뇌우"}; return {icon:"🌡️", desc:"보통"}; }
-        function getInitialData(type) { if(type === 'main') return { char: 'M', class: 'type-m' }; if(type === 'side') return { char: 'S', class: 'type-s' }; return { char: 'A', class: 'type-a' }; }
-        function formatDate(ts) { if(!ts) return ''; const d = new Date(ts); return d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); }
-        function insertChecklist(elId) { const t = document.getElementById(elId); if(t) { t.value += (t.value.length > 0 ? "\n" : "") + "- [ ] "; t.focus(); } }
+        };
+        window.getWeatherInfo = function(code) { if(code===0) return {icon:"☀️", desc:"맑음"}; if(code<=3) return {icon:"⛅", desc:"구름"}; if(code<=48) return {icon:"🌫️", desc:"안개"}; if(code<=55) return {icon:"🌦️", desc:"이슬비"}; if(code<=67) return {icon:"🌧️", desc:"비"}; if(code<=77) return {icon:"🌨️", desc:"눈"}; if(code<=82) return {icon:"☔", desc:"소나기"}; if(code<=99) return {icon:"⚡", desc:"뇌우"}; return {icon:"🌡️", desc:"보통"}; };
+        window.getInitialData = function(type) { if(type === 'main') return { char: 'M', class: 'type-m' }; if(type === 'side') return { char: 'S', class: 'type-s' }; return { char: 'A', class: 'type-a' }; };
+        window.formatDate = function(ts) { if(!ts) return ''; const d = new Date(ts); return d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); };
+        window.insertChecklist = function(elId) { const t = document.getElementById(elId); if(t) { t.value += (t.value.length > 0 ? "\n" : "") + "- [ ] "; t.focus(); } };
         
-        function addQuest() {
+        window.addQuest = function() {
             const title = document.getElementById('qTitle').value.trim(); const desc = document.getElementById('qDesc').value; const type = document.getElementById('qType').value; 
-            const dlVal = document.getElementById('qDeadline').value;
-            const deadline = dlVal ? new Date(dlVal).getTime() : null;
-            
-            const startVal = document.getElementById('qStart').value;
-            const id = startVal ? new Date(startVal).getTime() : Date.now();
-
+            const dlVal = document.getElementById('qDeadline').value; const deadline = dlVal ? new Date(dlVal).getTime() : null;
+            const startVal = document.getElementById('qStart').value; const id = startVal ? new Date(startVal).getTime() : Date.now();
             if(!title) return; 
             quests.unshift({ id: id, title: title, desc: desc, type: type, deadline: deadline, status: 'active', open: false });
-            quests.sort((a, b) => b.id - a.id); // Sort by date desc
-
-            save(); 
-            document.getElementById('qTitle').value = ''; 
-            document.getElementById('qDesc').value = ''; 
-            document.getElementById('qDeadline').value = ''; 
-            document.getElementById('qStart').value = '';
-            
+            quests.sort((a, b) => b.id - a.id);
+            saveToCloud(); 
+            document.getElementById('qTitle').value = ''; document.getElementById('qDesc').value = ''; document.getElementById('qDeadline').value = ''; document.getElementById('qStart').value = '';
             if(currentTab === type) renderList();
-        }
+        };
         
-        function saveEdit(id) {
-            // Main list inline edit doesn't support changing start date easily as it's the ID.
-            // Simplified edit for list view (title, desc, deadline)
+        window.saveEdit = function(id) {
             const newTitle = document.getElementById(`edit-title-${id}`).value; const newDesc = document.getElementById(`edit-desc-${id}`).value; const dlVal = document.getElementById(`edit-deadline-${id}`).value;
-            const newDeadline = dlVal ? new Date(dlVal).getTime() : null; const q = quests.find(x => x.id === id); if(q) { q.title = newTitle; q.desc = newDesc; q.deadline = newDeadline; save(); } editingId = null; checkDeadlines(); renderList();
-        }
+            const newDeadline = dlVal ? new Date(dlVal).getTime() : null; const q = quests.find(x => x.id === id); if(q) { q.title = newTitle; q.desc = newDesc; q.deadline = newDeadline; saveToCloud(); } editingId = null; renderList();
+        };
 
-        function renderList() {
+        window.renderList = function() {
             const listEl = document.getElementById('list'); listEl.innerHTML = ''; let filtered = [];
             if (currentTab === 'trash') filtered = quests.filter(q => q.status === 'deleted'); else if (currentTab === 'completed') filtered = quests.filter(q => q.status === 'completed'); else if (currentTab === 'failed') filtered = quests.filter(q => q.status === 'failed'); else filtered = quests.filter(q => q.type === currentTab && q.status === 'active');
+            let showEmpty = filtered.length === 0;
+            if(currentTab !== 'calendar' && currentTab !== 'trash') { document.getElementById('emptyMsg').style.display = showEmpty ? 'block' : 'none'; document.getElementById('emptyMsg').innerText = "기록 없음"; }
+            else if (currentTab === 'trash') { document.getElementById('emptyMsg').style.display = showEmpty ? 'block' : 'none'; if(showEmpty) document.getElementById('emptyMsg').innerText = "삭제된 임무 없음"; }
+            else { document.getElementById('emptyMsg').style.display = 'none'; }
             
-            // Check empty only if NOT displaying trash characters too. Or check both.
-            // Simplified: we will rely on individual empty msgs or hide main empty msg if either has content.
-            // But 'emptyMsg' element is below 'calendarWrapper'.
-            
-            let showEmpty = false;
-            if (filtered.length === 0) showEmpty = true;
-            
-            // If in trash tab, also check deleted characters for "empty" state visualization logic if desired,
-            // but currently 'emptyMsg' is a simple div. Let's just control it based on the main list for now, 
-            // and the trash char section has its own empty state text.
-            
-            if(currentTab !== 'calendar' && currentTab !== 'trash') {
-                 document.getElementById('emptyMsg').style.display = showEmpty ? 'block' : 'none';
-            } else if (currentTab === 'trash') {
-                 // In trash, we have 2 lists. Let's hide the main empty msg to avoid confusion, 
-                 // as we have separate empty msgs for chars. Or keep it for quests.
-                 // Current logic: renderList populates the quest list.
-                 document.getElementById('emptyMsg').style.display = showEmpty ? 'block' : 'none'; 
-                 if(showEmpty) document.getElementById('emptyMsg').innerText = "삭제된 임무 없음";
-            } else {
-                 document.getElementById('emptyMsg').style.display = 'none';
-            }
-            
-            if (currentTab === 'trash') {
-                document.getElementById('trashControls').style.display = 'flex'; // Always show controls in trash tab
-            }
-
             filtered.forEach(q => {
                 const li = document.createElement('li'); li.className = `quest-item ${q.status}`; if(q.open) li.classList.add('open');
                 const initData = getInitialData(q.type); const initialChar = currentTab === 'trash' ? '☠️' : initData.char; const initialClass = currentTab === 'trash' ? '' : initData.class; const isEditing = (editingId === q.id); const startDate = formatDate(q.id);
@@ -1255,124 +1169,59 @@
                     li.innerHTML = `<div class="quest-header" style="cursor:default;"><div class="header-left"><span>편집 모드</span></div></div><div class="quest-detail" style="display:block;"><input type="text" id="edit-title-${q.id}" class="edit-input" value="${q.title}"><div style="margin-bottom:10px;"><label style="font-size:0.8rem;">마감 기한: </label><input type="datetime-local" id="edit-deadline-${q.id}" value="${deadlineISO}"></div><div class="input-tools"><button class="tool-btn" onclick="insertChecklist('edit-desc-${q.id}')">+ 할 일 추가</button></div><textarea id="edit-desc-${q.id}" class="edit-textarea">${q.desc}</textarea><div class="btn-group"><button class="action-btn btn-save" onclick="saveEdit(${q.id})">💾 저장</button><button class="action-btn" onclick="cancelEdit()">취소</button></div></div>`;
                 } else {
                     let buttons = ''; 
-                    
-                    if(currentTab === 'trash') {
-                        buttons = `<button class="action-btn btn-restore" onclick="event.stopPropagation(); restoreItem(${q.id})">♻ 복구</button><button class="action-btn btn-perm" onclick="event.stopPropagation(); openModal('deletePerm', ${q.id})">🔥 영구삭제</button>`; 
-                    } else if (currentTab === 'completed' || currentTab === 'failed') {
-                        buttons = `<button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'active')">다시 활성화</button><button class="action-btn btn-edit" onclick="event.stopPropagation(); startEdit(${q.id})">✎ 수정</button><button class="action-btn btn-trash" onclick="event.stopPropagation(); moveToTrash(${q.id})">삭제</button>`; 
-                    } else {
-                        buttons = `<button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'completed')">성공</button><button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'failed')">실패</button><button class="action-btn btn-edit" onclick="event.stopPropagation(); startEdit(${q.id})">✎ 수정</button><button class="action-btn btn-trash" onclick="event.stopPropagation(); moveToTrash(${q.id})">삭제</button>`;
-                    }
-                    
+                    if(currentTab === 'trash') { buttons = `<button class="action-btn btn-restore" onclick="event.stopPropagation(); restoreItem(${q.id})">♻ 복구</button><button class="action-btn btn-perm" onclick="event.stopPropagation(); openModal('deletePerm', ${q.id})">🔥 영구삭제</button>`; }
+                    else if (['completed', 'failed'].includes(currentTab)) { buttons = `<button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'active')">다시 활성화</button><button class="action-btn btn-edit" onclick="event.stopPropagation(); startEdit(${q.id})">✎ 수정</button><button class="action-btn btn-trash" onclick="event.stopPropagation(); moveToTrash(${q.id})">삭제</button>`; }
+                    else { buttons = `<button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'completed')">성공</button><button class="action-btn" onclick="event.stopPropagation(); setStatus(${q.id}, 'failed')">실패</button><button class="action-btn btn-edit" onclick="event.stopPropagation(); startEdit(${q.id})">✎ 수정</button><button class="action-btn btn-trash" onclick="event.stopPropagation(); moveToTrash(${q.id})">삭제</button>`; }
                     const descHtml = parseDescription(q.desc, q.id);
-                    
-                    // 시간 표시 로직
                     let timeDisplay = '';
-                    if (q.status === 'completed' || q.status === 'failed') {
-                        const finishTime = q.finishedAt ? q.finishedAt : q.deadline;
-                        if (finishTime) {
-                             const endClass = q.status === 'completed' ? 'success' : 'fail';
-                             timeDisplay = `<span class="end-badge ${endClass}">종료: ${formatDate(finishTime)}</span>`;
-                        }
-                    } else {
-                        if (q.deadline) {
-                            timeDisplay = `<span class="deadline-badge">마감: ${formatDate(q.deadline)}</span>`;
-                        }
-                    }
-                    
+                    if (q.status === 'completed' || q.status === 'failed') { const finishTime = q.finishedAt ? q.finishedAt : q.deadline; if (finishTime) { const endClass = q.status === 'completed' ? 'success' : 'fail'; timeDisplay = `<span class="end-badge ${endClass}">종료: ${formatDate(finishTime)}</span>`; } }
+                    else { if (q.deadline) { timeDisplay = `<span class="deadline-badge">마감: ${formatDate(q.deadline)}</span>`; } }
                     li.innerHTML = `<div class="quest-header" onclick="toggleItem(${q.id})"><div class="header-left"><span class="quest-title"><span class="initial-badge ${initialClass}">${initialChar}</span> ${q.title}</span><div class="quest-meta">시작: ${startDate} ${timeDisplay}</div></div><div class="header-right"><span class="toggle-arrow">▼</span></div></div><div class="quest-detail"><div class="quest-desc-body">${descHtml}</div><div class="btn-group">${buttons}</div></div>`;
                 }
                 listEl.appendChild(li);
             });
-        }
-        function parseDescription(text, qId) { if (!text) return '상세 내용 없음'; return text.split('\n').map((l, i) => { const tr = l.trim(); if (tr.startsWith('- [ ]')) return `<div class="checklist-row" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☐</span> <span>${tr.substring(5)}</span></div>`; if (tr.startsWith('- [x]')) return `<div class="checklist-row checked" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☒</span> <span>${tr.substring(5)}</span></div>`; return `<div>${l}</div>`; }).join(''); }
-        function toggleCheck(qId, i) { 
-            if(editingId === qId) return; 
-            const q = quests.find(x => x.id === qId); if(!q) return; 
+        };
+        window.parseDescription = function(text, qId) { if (!text) return '상세 내용 없음'; return text.split('\n').map((l, i) => { const tr = l.trim(); if (tr.startsWith('- [ ]')) return `<div class="checklist-row" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☐</span> <span>${tr.substring(5)}</span></div>`; if (tr.startsWith('- [x]')) return `<div class="checklist-row checked" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☒</span> <span>${tr.substring(5)}</span></div>`; return `<div>${l}</div>`; }).join(''); };
+        window.toggleCheck = function(qId, i) { 
+            if(editingId === qId) return; const q = quests.find(x => x.id === qId); if(!q) return; 
             const l = q.desc.split('\n'); const ln = l[i].trim(); 
-            if (ln.startsWith('- [ ]')) l[i] = ln.replace('- [ ]', '- [x]'); 
-            else if (ln.startsWith('- [x]')) l[i] = ln.replace('- [x]', '- [ ]'); 
-            q.desc = l.join('\n'); save(); 
-            if(currentTab === 'calendar') renderCalendar(); else renderList();
-            if(selectedDetailId === qId) { document.getElementById('detailDesc').innerHTML = parseDescription(q.desc, q.id); }
-        }
-        function toggleItem(id) { if(editingId === id) return; const item = quests.find(q => q.id === id); if(item) { item.open = !item.open; renderList(); } }
+            if (ln.startsWith('- [ ]')) l[i] = ln.replace('- [ ]', '- [x]'); else if (ln.startsWith('- [x]')) l[i] = ln.replace('- [x]', '- [ ]'); 
+            q.desc = l.join('\n'); saveToCloud(); renderList(); if(selectedDetailId === qId) { document.getElementById('detailDesc').innerHTML = parseDescription(q.desc, q.id); }
+        };
+        window.toggleItem = function(id) { if(editingId === id) return; const item = quests.find(q => q.id === id); if(item) { item.open = !item.open; renderList(); } };
+        window.setStatus = function(id, s) { const item = quests.find(q => q.id === id); if(item) { item.status = s; if (s === 'completed' || s === 'failed') item.finishedAt = Date.now(); else if (s === 'active') item.finishedAt = null; saveToCloud(); } };
+        window.moveToTrash = function(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'deleted'; item.open = false; saveToCloud(); } };
+        window.restoreItem = function(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'active'; item.finishedAt = null; saveToCloud(); } };
+        window.startEdit = function(id) { editingId = id; const q = quests.find(x => x.id === id); if(q) q.open = true; renderList(); };
+        window.cancelEdit = function() { editingId = null; renderList(); };
         
-        function setStatus(id, s) { 
-            const item = quests.find(q => q.id === id); 
-            if(item) { 
-                item.status = s; 
-                if (s === 'completed' || s === 'failed') {
-                    item.finishedAt = Date.now();
-                } else if (s === 'active') {
-                    item.finishedAt = null;
-                }
-                save(); renderList(); 
-                if (currentTab === 'calendar') renderCalendar();
-            } 
-        }
-        
-        function moveToTrash(id) { 
-            const item = quests.find(q => q.id === id); 
-            if(item) { 
-                item.status = 'deleted'; 
-                item.open = false; 
-                save(); 
-                renderList(); 
-                
-                // FIX: If we are in calendar view, re-render it to remove the item immediately
-                if(currentTab === 'calendar') renderCalendar();
-            } 
-        }
-        
-        function restoreItem(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'active'; item.finishedAt = null; save(); renderList(); } }
-        function startEdit(id) { editingId = id; const q = quests.find(x => x.id === id); if(q) q.open = true; renderList(); }
-        function cancelEdit() { editingId = null; renderList(); }
-        
-        function openModal(act, id = null) { 
-            pendingAction = act; pendingId = id; 
-            const m = document.getElementById('customModal'); 
-            const t = document.getElementById('modalText'); 
-            
-            if(act === 'deletePerm') t.innerText = "이 기록을 영구히 삭제하시겠습니까?"; 
-            else if (act === 'deleteCharPerm') t.innerText = "이 인물을 영구히 삭제하시겠습니까?\n(되돌릴 수 없습니다)";
-            else if (act === 'reset') t.innerText = "모든 데이터를 삭제하고 초기화하시겠습니까?"; 
-            else if (act === 'emptyTrash') t.innerText = "휴지통을 완전히 비우시겠습니까?\n이 작업은 되돌릴 수 없습니다.";
-            else if (act === 'restoreTrash') t.innerText = "휴지통의 모든 항목을 복구하시겠습니까?";
-            
+        window.openModal = function(act, id = null) { 
+            pendingAction = act; pendingId = id; const m = document.getElementById('customModal'); const t = document.getElementById('modalText'); 
+            if(act === 'deletePerm') t.innerText = "이 기록을 영구히 삭제하시겠습니까?"; else if (act === 'deleteCharPerm') t.innerText = "이 인물을 영구히 삭제하시겠습니까?"; else if (act === 'reset') t.innerText = "경고: 모든 클라우드 데이터가 삭제됩니다."; else if (act === 'emptyTrash') t.innerText = "휴지통을 비우시겠습니까?"; else if (act === 'restoreTrash') t.innerText = "모두 복구하시겠습니까?";
             m.style.display = 'flex'; 
-        }
-        
-        function closeModal() { document.getElementById('customModal').style.display = 'none'; pendingAction = null; pendingId = null; }
+        };
+        window.closeModal = function() { document.getElementById('customModal').style.display = 'none'; pendingAction = null; pendingId = null; };
         
         document.getElementById('modalYesBtn').onclick = function() {
-            if (pendingAction === 'deletePerm' && pendingId) { 
-                quests = quests.filter(q => q.id !== pendingId); 
-            }
-            else if (pendingAction === 'deleteCharPerm' && pendingId) {
-                characters = characters.filter(c => c.id !== pendingId);
-            }
-            else if (pendingAction === 'reset') { 
-                localStorage.removeItem('kcd_quests_full'); localStorage.removeItem('kcd_location'); localStorage.removeItem('kcd_characters'); quests = []; characters = []; location.reload(); return; 
-            }
-            else if (pendingAction === 'emptyTrash') {
-                quests = quests.filter(q => q.status !== 'deleted');
-                characters = characters.filter(c => !c.isDeleted); // Empty trash clears deleted characters too
-            }
-            else if (pendingAction === 'restoreTrash') {
-                quests.forEach(q => { if(q.status === 'deleted') { q.status = 'active'; q.finishedAt = null; } });
-                characters.forEach(c => { if(c.isDeleted) c.isDeleted = false; });
-            }
-            
-            save(); saveCharacters();
-            if(currentTab === 'calendar') renderCalendar(); 
-            else renderList();
-            
-            if(currentTab === 'trash') renderTrashCharacters();
-            
-            closeModal();
+            if (pendingAction === 'deletePerm' && pendingId) { quests = quests.filter(q => q.id !== pendingId); }
+            else if (pendingAction === 'deleteCharPerm' && pendingId) { characters = characters.filter(c => c.id !== pendingId); }
+            else if (pendingAction === 'reset') { quests = []; characters = []; locationData = null; saveToCloud(); closeModal(); return; }
+            else if (pendingAction === 'emptyTrash') { quests = quests.filter(q => q.status !== 'deleted'); characters = characters.filter(c => !c.isDeleted); }
+            else if (pendingAction === 'restoreTrash') { quests.forEach(q => { if(q.status === 'deleted') { q.status = 'active'; q.finishedAt = null; } }); characters.forEach(c => { if(c.isDeleted) c.isDeleted = false; }); }
+            saveToCloud(); closeModal();
         };
-        function save() { localStorage.setItem('kcd_quests_full', JSON.stringify(quests)); }
+
+        // Interval updates
+        setInterval(updateClock, 1000);
+        setInterval(function() {
+            // Check deadlines
+            const now = Date.now(); let changed = false; 
+            quests.forEach(q => { if (q.status === 'active' && q.deadline && now > q.deadline) { q.status = 'failed'; q.finishedAt = q.deadline; changed = true; } });
+            if (changed) saveToCloud();
+        }, 60000);
+
     </script>
 </body>
 </html>
+
+
