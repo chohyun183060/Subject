@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KCD2: 클라우드 임무 일지</title>
+    <title>KCD2: 클라우드 동기화 저널</title>
     <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet">
     <style>
         /* --- STYLE START --- */
@@ -337,6 +337,18 @@
         .modal-btn.yes { background: var(--red-accent); color: white; }
         .modal-btn.no { background: white; }
         
+        /* SYNC PANEL */
+        .sync-panel {
+            border-top: 1px dashed rgba(0,0,0,0.3); padding-top: 20px; margin-top: 30px;
+            display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+        }
+        .sync-btn {
+            font-family: 'MedievalSharp', 'Noto Serif KR', serif;
+            background-color: #5d4037; color: #e3d2b4; border: 1px solid #3e2723;
+            padding: 8px 15px; cursor: pointer; border-radius: 4px; font-size: 0.9rem;
+        }
+        .sync-btn:hover { background-color: #3e2723; }
+
         /* ERROR OVERLAY FOR CONFIG */
         #configErrorOverlay {
             display: none;
@@ -540,13 +552,20 @@ const userConfig = {
 
             <div id="emptyMsg" style="text-align:center; color:#777; margin-top:30px;">로딩 중...</div>
 
+            <!-- SYNC PANEL (NEW) -->
+            <div class="sync-panel">
+                <button class="sync-btn" onclick="exportData()">📤 데이터 내보내기</button>
+                <button class="sync-btn" onclick="openImportModal()">📥 데이터 불러오기</button>
+                <button class="sync-btn" style="border-color:var(--gold-accent);" onclick="openSyncModal()">🔗 동기화 키 설정</button>
+            </div>
+
             <!-- CLOUD STATUS -->
             <div class="cloud-status">
                 <div id="statusDot" class="status-dot"></div>
                 <span id="statusText">클라우드 연결 중...</span>
             </div>
             <div style="text-align:center; font-size:0.7rem; color:#777; margin-top:5px;">
-                User ID: <span id="displayUserId">...</span>
+                Access Key: <span id="displayUserId">...</span>
             </div>
         </div>
         
@@ -563,6 +582,35 @@ const userConfig = {
             <div class="modal-buttons">
                 <button class="modal-btn yes" id="modalYesBtn">예</button>
                 <button class="modal-btn no" onclick="closeModal()">아니오</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMPORT MODAL -->
+    <div id="importModal" class="modal-overlay">
+        <div class="modal-box" style="width: 400px;">
+            <div class="modal-title">데이터 불러오기</div>
+            <p style="font-size:0.9rem; color:#555;">복사한 코드를 아래에 붙여넣으세요.</p>
+            <textarea id="importText" style="width:100%; height:100px; border:1px solid #5c4a30; font-family:monospace; font-size:0.8rem;"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="importData()">불러오기</button>
+                <button class="modal-btn no" onclick="document.getElementById('importModal').style.display='none'">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SYNC SETTING MODAL (NEW) -->
+    <div id="syncModal" class="modal-overlay">
+        <div class="modal-box" style="width: 350px;">
+            <div class="modal-title">🔗 동기화 키 설정</div>
+            <p style="font-size:0.85rem; color:#555; margin-bottom:10px;">
+                여러 기기에서 데이터를 공유하려면<br>같은 "키(Key)"를 입력하세요.<br>(예: mygame123)
+            </p>
+            <input type="text" id="syncInput" class="modal-input" placeholder="비밀 키 입력...">
+            <div style="font-size:0.7rem; color:#b71c1c; margin-top:5px;">⚠ 키를 변경하면 현재 화면의 데이터가 바뀝니다.</div>
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="setSyncKey()">설정 (저장)</button>
+                <button class="modal-btn no" onclick="document.getElementById('syncModal').style.display='none'">취소</button>
             </div>
         </div>
     </div>
@@ -627,19 +675,18 @@ const userConfig = {
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc, getDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==================================================================================
         // [필수] GitHub 등 외부에서 사용 시 아래 userConfig 값을 본인의 Firebase 키로 교체하세요!
         // ==================================================================================
         const userConfig = {
-            apiKey: "AIzaSyC7tzMYnWdlIWxG_uf2TibEkdHGrhIMYWk",
-            authDomain: "my-kcd2-journal.firebaseapp.com",
-            projectId: "my-kcd2-journal",
-            storageBucket: "my-kcd2-journal.firebasestorage.app",
-            messagingSenderId: "739700170828",
-            appId: "1:739700170828:web:5c1366d5ed62975f0c94e9",
-            measurementId: "G-RBYTW05CX4"
+            apiKey: "YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
         // ==================================================================================
 
@@ -648,18 +695,15 @@ const userConfig = {
 
         // Check environment
         if (typeof __firebase_config !== 'undefined') {
-            // Internal Preview Environment
             firebaseConfig = JSON.parse(__firebase_config);
             if(typeof __app_id !== 'undefined') appId = __app_id;
         } else {
-            // External Environment (GitHub etc.)
-            // Check if user has replaced the placeholder
             if (userConfig.apiKey === "YOUR_API_KEY_HERE") {
                 document.getElementById('configErrorOverlay').style.display = 'flex';
                 throw new Error("Firebase Config Not Set");
             }
             firebaseConfig = userConfig;
-            appId = 'kcd-journal-public'; // Default app ID for external usage
+            appId = 'kcd-journal-public'; 
         }
 
         const app = initializeApp(firebaseConfig);
@@ -669,8 +713,10 @@ const userConfig = {
         let userId = null;
         let quests = [];
         let characters = [];
-        let locationData = null; // Store location here
+        let locationData = null; 
         let docRef = null;
+        let unsubscribeSnap = null;
+        let syncKey = localStorage.getItem('kcd_sync_key') || null;
         
         // --- UI Variables ---
         let currentTab = 'main';
@@ -683,19 +729,15 @@ const userConfig = {
         let customStartDate = null;
         let editingCharId = null;
 
-        // --- Firebase Auth & Init ---
         async function initAuth() {
-            // Internal Env: Use custom token if available
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                 await signInWithCustomToken(auth, __initial_auth_token);
             } else {
-                // External/Internal Fallback: Anonymous Auth
-                // NOTE: You must enable "Anonymous" provider in Firebase Console -> Authentication -> Sign-in method
                 try {
                     await signInAnonymously(auth);
                 } catch (e) {
                     console.error("Auth Error:", e);
-                    updateStatus("error", "로그인 실패 (익명 인증을 켰나요?)");
+                    updateStatus("error", "로그인 실패");
                 }
             }
         }
@@ -705,72 +747,74 @@ const userConfig = {
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 userId = user.uid;
-                document.getElementById('displayUserId').innerText = userId.substring(0, 8) + "...";
-                updateStatus("online", "클라우드 동기화 완료");
-                
-                // Firestore Path Logic
-                if (typeof __firebase_config !== 'undefined') {
-                    // Internal: Restricted Path
-                    docRef = doc(db, 'artifacts', appId, 'users', userId, 'journal', 'data');
-                } else {
-                    // External: You can use a simpler path or same structure
-                    // Using 'users' collection at root for simplicity in private projects
-                    docRef = doc(db, 'users', userId, 'journal', 'data');
-                }
-                
-                // Real-time Listener
-                onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        quests = data.quests || [];
-                        characters = data.characters || [];
-                        
-                        // Handle Location Sync
-                        if (data.location && (!locationData || locationData.name !== data.location.name)) {
-                            locationData = data.location;
-                            // Update UI if location changed
-                            fetchWeather(locationData.lat, locationData.lon, locationData.name);
-                        }
-                    } else {
-                        // New user: init empty
-                        quests = [];
-                        characters = [];
-                    }
-                    
-                    // Refresh UI
-                    if(currentTab === 'calendar') {
-                        renderCalendar();
-                        renderCharacters();
-                    } else if (currentTab === 'trash') {
-                        renderList();
-                        renderTrashCharacters();
-                    } else {
-                        renderList();
-                    }
-                    updateClock(); // Force update HUD
-                }, (error) => {
-                    console.error("Sync Error:", error);
-                    updateStatus("error", "동기화 오류 (DB 규칙 확인)");
-                });
-
-            } else {
-                // Waiting for auth...
+                setupFirestoreListener();
             }
         });
 
-        // --- Core Functions Replacement ---
+        function setupFirestoreListener() {
+            if (unsubscribeSnap) unsubscribeSnap();
 
-        // Replaces localStorage.setItem with Firestore setDoc
+            // PATH LOGIC: 
+            // If syncKey is set => Public Shared Path
+            // If no syncKey => Private User Path (Default)
+            let pathLabel = "";
+            
+            if (syncKey) {
+                // Public Shared Data (Using 'journals' collection in public data)
+                docRef = doc(db, 'artifacts', appId, 'public', 'data', 'journals', syncKey);
+                pathLabel = "키: " + syncKey;
+            } else {
+                // Private Data
+                if (typeof __firebase_config !== 'undefined') {
+                    docRef = doc(db, 'artifacts', appId, 'users', userId, 'journal', 'data');
+                } else {
+                    docRef = doc(db, 'users', userId, 'journal', 'data');
+                }
+                pathLabel = "비공개 (ID: " + userId.substring(0,6) + ")";
+            }
+
+            document.getElementById('displayUserId').innerText = pathLabel;
+            updateStatus("online", "동기화 중...");
+
+            unsubscribeSnap = onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    quests = data.quests || [];
+                    characters = data.characters || [];
+                    if (data.location && (!locationData || locationData.name !== data.location.name)) {
+                        locationData = data.location;
+                        fetchWeather(locationData.lat, locationData.lon, locationData.name);
+                    }
+                } else {
+                    quests = [];
+                    characters = [];
+                }
+                refreshUI();
+            }, (error) => {
+                console.error("Sync Error:", error);
+                updateStatus("error", "데이터 접근 실패");
+            });
+        }
+
+        function refreshUI() {
+            if(currentTab === 'calendar') {
+                renderCalendar();
+                renderCharacters();
+            } else if (currentTab === 'trash') {
+                renderList();
+                renderTrashCharacters();
+            } else {
+                renderList();
+            }
+            updateClock();
+        }
+
         async function saveToCloud() {
             if (!docRef) return;
             updateStatus("saving", "저장 중...");
             try {
-                const dataToSave = {
-                    quests: quests,
-                    characters: characters
-                };
+                const dataToSave = { quests: quests, characters: characters };
                 if(locationData) dataToSave.location = locationData;
-
                 await setDoc(docRef, dataToSave, { merge: true });
                 updateStatus("online", "저장됨");
             } catch (e) {
@@ -789,15 +833,64 @@ const userConfig = {
             else if(state === 'error') dot.classList.add('error');
         }
 
-        // --- Existing Logic (Adapted) ---
+        // --- EXPORT / IMPORT / SYNC ---
+        window.exportData = function() {
+            const exportObj = { quests: quests, characters: characters };
+            const dataStr = JSON.stringify(exportObj);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(dataStr).then(() => alert("복사되었습니다!")).catch(() => prompt("복사하세요:", dataStr));
+            } else {
+                prompt("복사하세요:", dataStr);
+            }
+        };
 
+        window.openImportModal = function() {
+            document.getElementById('importText').value = '';
+            document.getElementById('importModal').style.display = 'flex';
+        };
+
+        window.importData = function() {
+            const str = document.getElementById('importText').value.trim();
+            try {
+                const parsed = JSON.parse(str);
+                if (parsed.quests && parsed.characters) {
+                    if(confirm("현재 화면의 데이터를 덮어씁니다. 계속하시겠습니까?")) {
+                        quests = parsed.quests;
+                        characters = parsed.characters;
+                        saveToCloud();
+                        document.getElementById('importModal').style.display='none';
+                        alert("불러오기 완료!");
+                    }
+                } else {
+                    alert("형식이 올바르지 않습니다.");
+                }
+            } catch (e) {
+                alert("오류: 데이터가 손상되었습니다.");
+            }
+        };
+
+        window.openSyncModal = function() {
+            document.getElementById('syncInput').value = syncKey || '';
+            document.getElementById('syncModal').style.display = 'flex';
+        };
+
+        window.setSyncKey = function() {
+            const key = document.getElementById('syncInput').value.trim();
+            if (key) {
+                syncKey = key;
+                localStorage.setItem('kcd_sync_key', key);
+            } else {
+                syncKey = null;
+                localStorage.removeItem('kcd_sync_key');
+            }
+            document.getElementById('syncModal').style.display = 'none';
+            setupFirestoreListener(); // Re-connect to new path
+        };
+
+        // --- Standard Logic ---
         window.initWeather = function() {
             if (!locationData && navigator.geolocation) {
-                 navigator.geolocation.getCurrentPosition((p) => { 
-                     fetchWeather(p.coords.latitude, p.coords.longitude, "내 위치");
-                 }, () => { 
-                     document.getElementById('weatherDesc').innerText = "위치 설정 필요"; 
-                 });
+                 navigator.geolocation.getCurrentPosition((p) => { fetchWeather(p.coords.latitude, p.coords.longitude, "내 위치"); }, () => { document.getElementById('weatherDesc').innerText = "위치 설정 필요"; });
             }
         };
 
@@ -919,27 +1012,22 @@ const userConfig = {
             const list = document.getElementById('charList');
             const datalist = document.getElementById('categoryList');
             list.innerHTML = ''; datalist.innerHTML = '';
-            
             const activeChars = characters.filter(c => !c.isDeleted);
-            
             const categories = new Set();
             activeChars.forEach(c => { if(c.category) categories.add(c.category); });
             categories.forEach(cat => {
                 const opt = document.createElement('option'); opt.value = cat; datalist.appendChild(opt);
             });
-
             if (activeChars.length === 0) {
                 list.innerHTML = '<div style="text-align:center; padding:20px; color:#777; font-size:0.8rem;">등록된 인물 없음</div>';
                 return;
             }
-
             const groups = {};
             activeChars.forEach(c => {
                 const cat = c.category ? c.category : "미분류 (Uncategorized)";
                 if(!groups[cat]) groups[cat] = [];
                 groups[cat].push(c);
             });
-
             Object.keys(groups).sort().forEach(cat => {
                 const header = document.createElement('div'); header.className = 'char-category-header'; header.innerText = cat; list.appendChild(header);
                 groups[cat].forEach(c => {
@@ -953,12 +1041,7 @@ const userConfig = {
                         case 'enemy': stLabel = "적대"; stClass = "st-enemy"; break;
                         default: stLabel = "중립"; stClass = "st-neutral";
                     }
-                    div.innerHTML = `
-                        <div class="char-avatar">${initial}</div>
-                        <div class="char-info"><div class="char-name">${c.name}</div><div class="char-role">${c.role || '설명 없음'}</div>${c.desc ? `<div class="char-detail-text">${c.desc.replace(/\n/g, '<br>')}</div>` : ''}</div>
-                        <span class="char-status ${stClass}">${stLabel}</span>
-                        <div class="char-actions"><button class="char-btn-mini edit" onclick="editCharacter(${c.id})">✏️</button><button class="char-btn-mini del" onclick="deleteCharacter(${c.id})">🗑️</button></div>
-                    `;
+                    div.innerHTML = `<div class="char-avatar">${initial}</div><div class="char-info"><div class="char-name">${c.name}</div><div class="char-role">${c.role || '설명 없음'}</div>${c.desc ? `<div class="char-detail-text">${c.desc.replace(/\n/g, '<br>')}</div>` : ''}</div><span class="char-status ${stClass}">${stLabel}</span><div class="char-actions"><button class="char-btn-mini edit" onclick="editCharacter(${c.id})">✏️</button><button class="char-btn-mini del" onclick="deleteCharacter(${c.id})">🗑️</button></div>`;
                     list.appendChild(div);
                 });
             });
