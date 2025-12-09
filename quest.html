@@ -1110,8 +1110,14 @@
         function closeDetailModal() { document.getElementById('questDetailModal').style.display = 'none'; selectedDetailId = null; }
         
         function detailAction(action) {
-            if(!selectedDetailId) return; 
-            setStatus(selectedDetailId, action); 
+            if(!selectedDetailId) return;
+            
+            // FIX: If action is delete, use moveToTrash to ensure proper state transition
+            if (action === 'delete') {
+                moveToTrash(selectedDetailId);
+            } else {
+                setStatus(selectedDetailId, action); 
+            }
             closeDetailModal();
         }
         
@@ -1306,7 +1312,19 @@
             } 
         }
         
-        function moveToTrash(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'deleted'; item.open = false; save(); renderList(); } }
+        function moveToTrash(id) { 
+            const item = quests.find(q => q.id === id); 
+            if(item) { 
+                item.status = 'deleted'; 
+                item.open = false; 
+                save(); 
+                renderList(); 
+                
+                // FIX: If we are in calendar view, re-render it to remove the item immediately
+                if(currentTab === 'calendar') renderCalendar();
+            } 
+        }
+        
         function restoreItem(id) { const item = quests.find(q => q.id === id); if(item) { item.status = 'active'; item.finishedAt = null; save(); renderList(); } }
         function startEdit(id) { editingId = id; const q = quests.find(x => x.id === id); if(q) q.open = true; renderList(); }
         function cancelEdit() { editingId = null; renderList(); }
