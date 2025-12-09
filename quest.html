@@ -416,10 +416,27 @@
             </p>
             <div class="code-block">
 const userConfig = {
-    apiKey: "여기에_붙여넣으세요",
-    authDomain: "...",
-    projectId: "...",
-    ...
+  // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCfXU8XhP402is_qRAsylr08rnmFd3dh0k",
+  authDomain: "kdc2-5bbc3.firebaseapp.com",
+  projectId: "kdc2-5bbc3",
+  storageBucket: "kdc2-5bbc3.firebasestorage.app",
+  messagingSenderId: "1073063870296",
+  appId: "1:1073063870296:web:5df5929f7681144d096f2d",
+  measurementId: "G-WL3C98WMKR"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 };
             </div>
             <button onclick="location.reload()" style="background:#8b0000; color:white; border:none; padding:10px 20px; font-weight:bold; cursor:pointer;">설정 완료 후 새로고침</button>
@@ -1292,3 +1309,4 @@ const userConfig = {
     </script>
 </body>
 </html>
+
