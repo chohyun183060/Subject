@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KCD2: 클라우드 동기화 저널</title>
+    <title>KCD2: 클라우드 동기화 저널 (Media Ver)</title>
     <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet">
     <style>
         /* --- STYLE START --- */
@@ -86,9 +86,9 @@
         /* INPUT AREA */
         .input-area { border: 1px solid rgba(0,0,0,0.2); padding: 15px; margin-bottom: 20px; background: rgba(255,255,255,0.2); }
         .input-area.hidden { display: none; }
-        .input-tools { display: flex; justify-content: flex-end; margin-bottom: 5px; }
-        .tool-btn { background: transparent; border: 1px solid var(--ink); cursor: pointer; font-size: 0.8rem; padding: 2px 8px; font-family: 'MedievalSharp', 'Noto Serif KR', serif; }
-        .tool-btn:hover { background: rgba(0,0,0,0.1); }
+        .input-tools { display: flex; justify-content: flex-end; gap: 5px; margin-bottom: 5px; }
+        .tool-btn { background: transparent; border: 1px solid var(--ink); cursor: pointer; font-size: 0.8rem; padding: 2px 8px; font-family: 'MedievalSharp', 'Noto Serif KR', serif; transition: 0.2s; }
+        .tool-btn:hover { background: rgba(0,0,0,0.1); transform: translateY(-1px); }
 
         input, textarea, select {
             width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--ink);
@@ -143,6 +143,31 @@
         .quest-detail { display: none; padding: 15px; background: rgba(0,0,0,0.03); font-size: 0.95rem; color: #4a4a4a; }
         .quest-item.open .quest-detail { display: block; }
         .quest-item.open .toggle-arrow { transform: rotate(180deg); }
+
+        /* MEDIA STYLES */
+        .desc-media {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border: 3px double #5c4a30;
+            border-radius: 4px;
+            margin: 10px 0;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            background-color: #000;
+        }
+        .desc-video-frame {
+            width: 100%;
+            height: 250px;
+            border: 3px double #5c4a30;
+            border-radius: 4px;
+            margin: 10px 0;
+            background-color: #000;
+        }
+        .media-error-link {
+            display: inline-block; padding: 5px 10px; background: #e0e0e0; border: 1px solid #999;
+            color: #333; text-decoration: none; border-radius: 4px; font-size: 0.8rem; margin: 5px 0;
+        }
+        .media-error-link:hover { background: #d0d0d0; }
 
         /* CHECKLIST & STATUS */
         .checklist-row { padding: 3px 0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
@@ -481,8 +506,12 @@ const userConfig = {
                     </div>
                 </div>
 
-                <div class="input-tools"><button class="tool-btn" onclick="insertChecklist('qDesc')">+ 할 일 추가</button></div>
-                <textarea id="qDesc" placeholder="상세 내용..."></textarea>
+                <div class="input-tools">
+                    <button class="tool-btn" onclick="insertChecklist('qDesc')">+ 할 일</button>
+                    <button class="tool-btn" onclick="insertMedia('qDesc', 'img')">🖼 사진</button>
+                    <button class="tool-btn" onclick="insertMedia('qDesc', 'video')">🎬 영상</button>
+                </div>
+                <textarea id="qDesc" placeholder="상세 내용... (사진/영상 버튼으로 링크 추가 가능)"></textarea>
                 <select id="qType">
                     <option value="main">메인</option>
                     <option value="side">서브</option>
@@ -645,7 +674,11 @@ const userConfig = {
 
             <textarea id="modalQDesc" class="edit-textarea" style="width:96%; height:80px; margin-top:10px;" placeholder="상세 내용..."></textarea>
             <div style="display:flex; justify-content:space-between; margin-top:10px;">
-                <button class="tool-btn" onclick="insertChecklist('modalQDesc')">+ 할 일 추가</button>
+                <div class="input-tools" style="justify-content:flex-start;">
+                    <button class="tool-btn" onclick="insertChecklist('modalQDesc')">+ 할 일</button>
+                    <button class="tool-btn" onclick="insertMedia('modalQDesc', 'img')">🖼 사진</button>
+                    <button class="tool-btn" onclick="insertMedia('modalQDesc', 'video')">🎬 영상</button>
+                </div>
                 <select id="modalQType" style="border:none; border-bottom:1px solid var(--ink); background:transparent; font-family:'Noto Serif KR',serif;">
                     <option value="main">메인</option>
                     <option value="side">서브</option>
@@ -666,9 +699,22 @@ const userConfig = {
             <div class="q-detail-row"><span class="q-label">종류:</span> <span id="detailType">Main</span></div>
             <div class="q-detail-row"><span class="q-label">시작:</span> <span id="detailStart">-</span></div>
             <div class="q-detail-row"><span class="q-label" id="detailDeadlineLabel">마감:</span> <span id="detailDeadline">-</span></div>
-            <div class="q-detail-row" style="border-top:1px dashed #5c4a30; padding-top:5px; margin-top:5px; max-height:100px; overflow-y:auto;" id="detailDesc"></div>
+            <div class="q-detail-row" style="border-top:1px dashed #5c4a30; padding-top:5px; margin-top:5px; max-height:250px; overflow-y:auto;" id="detailDesc"></div>
             <div class="q-action-btns" id="detailBtns"></div>
             <div style="margin-top:15px; text-align:center;"><span style="font-size:0.8rem; text-decoration:underline; cursor:pointer;" onclick="closeDetailModal()">닫기</span></div>
+        </div>
+    </div>
+
+    <!-- MEDIA INPUT MODAL (NEW) -->
+    <div id="mediaModal" class="modal-overlay">
+        <div class="modal-box" style="width: 350px;">
+            <div class="modal-title" id="mediaModalTitle">미디어 추가</div>
+            <p style="font-size:0.9rem; color:#555;" id="mediaModalDesc">URL을 입력하세요.</p>
+            <input type="text" id="mediaInput" class="modal-input" placeholder="https://..." onkeypress="if(event.key==='Enter') confirmInsertMedia()">
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="confirmInsertMedia()">추가</button>
+                <button class="modal-btn no" onclick="closeMediaModal()">취소</button>
+            </div>
         </div>
     </div>
 
@@ -1203,8 +1249,42 @@ const userConfig = {
         window.getWeatherInfo = function(code) { if(code===0) return {icon:"☀️", desc:"맑음"}; if(code<=3) return {icon:"⛅", desc:"구름"}; if(code<=48) return {icon:"🌫️", desc:"안개"}; if(code<=55) return {icon:"🌦️", desc:"이슬비"}; if(code<=67) return {icon:"🌧️", desc:"비"}; if(code<=77) return {icon:"🌨️", desc:"눈"}; if(code<=82) return {icon:"☔", desc:"소나기"}; if(code<=99) return {icon:"⚡", desc:"뇌우"}; return {icon:"🌡️", desc:"보통"}; };
         window.getInitialData = function(type) { if(type === 'main') return { char: 'M', class: 'type-m' }; if(type === 'side') return { char: 'S', class: 'type-s' }; return { char: 'A', class: 'type-a' }; };
         window.formatDate = function(ts) { if(!ts) return ''; const d = new Date(ts); return d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); };
+        
         window.insertChecklist = function(elId) { const t = document.getElementById(elId); if(t) { t.value += (t.value.length > 0 ? "\n" : "") + "- [ ] "; t.focus(); } };
         
+        // --- MEDIA INSERT FUNCTION ---
+        let mediaTargetId = null;
+        let mediaType = null;
+
+        window.insertMedia = function(elId, type) {
+            mediaTargetId = elId;
+            mediaType = type;
+            document.getElementById('mediaModalTitle').innerText = type === 'img' ? "사진 추가" : "영상 추가";
+            document.getElementById('mediaModalDesc').innerText = type === 'img' ? "이미지 주소(URL)를 입력하세요." : "영상/유튜브 주소(URL)를 입력하세요.";
+            document.getElementById('mediaInput').value = "";
+            document.getElementById('mediaModal').style.display = 'flex';
+            document.getElementById('mediaInput').focus();
+        };
+
+        window.closeMediaModal = function() {
+            document.getElementById('mediaModal').style.display = 'none';
+            mediaTargetId = null;
+            mediaType = null;
+        };
+
+        window.confirmInsertMedia = function() {
+            const url = document.getElementById('mediaInput').value.trim();
+            if (!url) return closeMediaModal();
+            
+            const tag = mediaType === 'img' ? `\n[img:${url}]\n` : `\n[video:${url}]\n`;
+            const t = document.getElementById(mediaTargetId);
+            if(t) { 
+                t.value += tag; 
+                t.focus(); 
+            }
+            closeMediaModal();
+        };
+
         window.addQuest = function() {
             const title = document.getElementById('qTitle').value.trim(); const desc = document.getElementById('qDesc').value; const type = document.getElementById('qType').value; 
             const dlVal = document.getElementById('qDeadline').value; const deadline = dlVal ? new Date(dlVal).getTime() : null;
@@ -1236,7 +1316,7 @@ const userConfig = {
                 let deadlineISO = ""; if(q.deadline) { const d = new Date(q.deadline); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); deadlineISO = d.toISOString().slice(0,16); }
                 
                 if (isEditing) {
-                    li.innerHTML = `<div class="quest-header" style="cursor:default;"><div class="header-left"><span>편집 모드</span></div></div><div class="quest-detail" style="display:block;"><input type="text" id="edit-title-${q.id}" class="edit-input" value="${q.title}"><div style="margin-bottom:10px;"><label style="font-size:0.8rem;">마감 기한: </label><input type="datetime-local" id="edit-deadline-${q.id}" value="${deadlineISO}"></div><div class="input-tools"><button class="tool-btn" onclick="insertChecklist('edit-desc-${q.id}')">+ 할 일 추가</button></div><textarea id="edit-desc-${q.id}" class="edit-textarea">${q.desc}</textarea><div class="btn-group"><button class="action-btn btn-save" onclick="saveEdit(${q.id})">💾 저장</button><button class="action-btn" onclick="cancelEdit()">취소</button></div></div>`;
+                    li.innerHTML = `<div class="quest-header" style="cursor:default;"><div class="header-left"><span>편집 모드</span></div></div><div class="quest-detail" style="display:block;"><input type="text" id="edit-title-${q.id}" class="edit-input" value="${q.title}"><div style="margin-bottom:10px;"><label style="font-size:0.8rem;">마감 기한: </label><input type="datetime-local" id="edit-deadline-${q.id}" value="${deadlineISO}"></div><div class="input-tools"><button class="tool-btn" onclick="insertChecklist('edit-desc-${q.id}')">+ 할 일</button><button class="tool-btn" onclick="insertMedia('edit-desc-${q.id}', 'img')">🖼 사진</button><button class="tool-btn" onclick="insertMedia('edit-desc-${q.id}', 'video')">🎬 영상</button></div><textarea id="edit-desc-${q.id}" class="edit-textarea">${q.desc}</textarea><div class="btn-group"><button class="action-btn btn-save" onclick="saveEdit(${q.id})">💾 저장</button><button class="action-btn" onclick="cancelEdit()">취소</button></div></div>`;
                 } else {
                     let buttons = ''; 
                     if(currentTab === 'trash') { buttons = `<button class="action-btn btn-restore" onclick="event.stopPropagation(); restoreItem(${q.id})">♻ 복구</button><button class="action-btn btn-perm" onclick="event.stopPropagation(); openModal('deletePerm', ${q.id})">🔥 영구삭제</button>`; }
@@ -1251,7 +1331,51 @@ const userConfig = {
                 listEl.appendChild(li);
             });
         };
-        window.parseDescription = function(text, qId) { if (!text) return '상세 내용 없음'; return text.split('\n').map((l, i) => { const tr = l.trim(); if (tr.startsWith('- [ ]')) return `<div class="checklist-row" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☐</span> <span>${tr.substring(5)}</span></div>`; if (tr.startsWith('- [x]')) return `<div class="checklist-row checked" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☒</span> <span>${tr.substring(5)}</span></div>`; return `<div>${l}</div>`; }).join(''); };
+        
+        // --- PARSER UPDATE (ULTIMATE YOUTUBE FIX) ---
+        window.parseDescription = function(text, qId) { 
+            if (!text) return '상세 내용 없음'; 
+            return text.split('\n').map((l, i) => { 
+                const tr = l.trim(); 
+                if (tr.startsWith('- [ ]')) return `<div class="checklist-row" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☐</span> <span>${tr.substring(5)}</span></div>`; 
+                if (tr.startsWith('- [x]')) return `<div class="checklist-row checked" onclick="event.stopPropagation(); toggleCheck(${qId}, ${i})"><span class="check-box-icon">☒</span> <span>${tr.substring(5)}</span></div>`; 
+                
+                const imgMatch = l.match(/^\[img:(.*?)\]$/);
+                if (imgMatch) {
+                    return `<img src="${imgMatch[1]}" class="desc-media" alt="Journal Image" onerror="this.style.display='none'">`;
+                }
+
+                const vidMatch = l.match(/^\[video:(.*?)\]$/);
+                if (vidMatch) {
+                    let url = vidMatch[1].trim();
+                    let embedUrl = url;
+                    
+                    // Regex to extract 11-char YouTube ID from ALMOST ANY YouTube URL (Shorts, Watch, Embed, Mobile)
+                    // Matches: v=ID, embed/ID, shorts/ID, youtu.be/ID
+                    const ytRegExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+                    const match = url.match(ytRegExp);
+
+                    if (match && match[1]) {
+                        embedUrl = `https://www.youtube.com/embed/${match[1]}`;
+                        // Add origin to potentially fix some restrictions (though sandboxed iframes are tricky)
+                        return `
+                            <iframe class="desc-video-frame" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="no-referrer" allowfullscreen></iframe>
+                            <div style="text-align:right; margin-bottom:10px;">
+                                <a href="https://youtu.be/${match[1]}" target="_blank" style="font-size:0.8rem; color:#8b0000; text-decoration:underline;">
+                                    ⚠️ 영상이 안 나오나요? 유튜브에서 보기
+                                </a>
+                            </div>
+                        `;
+                    } else {
+                        // Fallback for non-parseable URLs to avoid "Refused to connect"
+                        return `<a href="${url}" target="_blank" class="media-error-link">🎬 영상 링크 (클릭하여 열기)</a>`;
+                    }
+                }
+
+                return `<div>${l}</div>`; 
+            }).join(''); 
+        };
+
         window.toggleCheck = function(qId, i) { 
             if(editingId === qId) return; const q = quests.find(x => x.id === qId); if(!q) return; 
             const l = q.desc.split('\n'); const ln = l[i].trim(); 
