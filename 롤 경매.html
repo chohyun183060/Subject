@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>롤 멸망전 경매 시스템</title>
+    <title>롤 멸망전 경매 시스템 (팀장 유동 선택)</title>
     <!-- Tailwind CSS (디자인) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM (로직) -->
@@ -31,11 +31,11 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // --- 아이콘 컴포넌트 (SVG) ---
-        const Icon = ({ children, className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        // --- 아이콘 컴포넌트 ---
+        const Icon = ({ children, className, onClick }) => (
+            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {children}
             </svg>
         );
@@ -50,6 +50,7 @@
         const ListIcon = (props) => <Icon {...props}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></Icon>;
         const CopyIcon = (props) => <Icon {...props}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></Icon>;
         const UndoIcon = (props) => <Icon {...props}><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></Icon>;
+        const Crown = (props) => <Icon {...props}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></Icon>;
 
         // --- 데이터 정의 ---
         const ROLES = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
@@ -66,12 +67,13 @@
             D: 'text-amber-700',
         };
 
+        // 초기 데이터 (팀장 정보는 상태에서 관리)
         const INITIAL_PLAYERS = [
             { name: '태무', role: 'TOP', isCaptain: false },
             { name: '건재', role: 'TOP', isCaptain: false },
             { name: '승범', role: 'TOP', isCaptain: false },
-            { name: '현태', role: 'TOP', isCaptain: true },
-            { name: '인혁', role: 'JGL', isCaptain: true },
+            { name: '현태', role: 'TOP', isCaptain: true }, // 기본값
+            { name: '인혁', role: 'JGL', isCaptain: true }, // 기본값
             { name: '선우', role: 'JGL', isCaptain: false },
             { name: '진현', role: 'JGL', isCaptain: false },
             { name: '호연', role: 'JGL', isCaptain: false },
@@ -79,17 +81,15 @@
             { name: '찬현', role: 'MID', isCaptain: false },
             { name: '호진', role: 'MID', isCaptain: false },
             { name: '승원', role: 'MID', isCaptain: false },
-            { name: '희성', role: 'ADC', isCaptain: true },
+            { name: '희성', role: 'ADC', isCaptain: true }, // 기본값
             { name: '성윤', role: 'ADC', isCaptain: false },
             { name: '현빈', role: 'ADC', isCaptain: false },
             { name: '세연', role: 'ADC', isCaptain: false },
             { name: '일서', role: 'SUP', isCaptain: false },
             { name: '필립', role: 'SUP', isCaptain: false },
             { name: '관우', role: 'SUP', isCaptain: false },
-            { name: '희철', role: 'SUP', isCaptain: true },
+            { name: '희철', role: 'SUP', isCaptain: true }, // 기본값
         ];
-
-        const CAPTAINS = ['현태', '인혁', '희성', '희철'];
 
         const calculateTeamStats = (teamMembers, allPlayers) => {
             if (teamMembers.length === 0) return { max: '-', min: '-', avg: '-' };
@@ -117,10 +117,19 @@
             const [view, setView] = useState('setup');
             const [players, setPlayers] = useState(INITIAL_PLAYERS.map(p => ({ ...p, tier: 'B' })));
             
-            // 설정 화면에서 사용할 초기 포인트 상태 분리 (설정 유지용)
-            const [initialPoints, setInitialPoints] = useState(
-                CAPTAINS.reduce((acc, name) => ({ ...acc, [name]: 1000 }), {})
-            );
+            // 포인트는 이름(Key)으로 관리
+            const [initialPoints, setInitialPoints] = useState(() => {
+                const points = {};
+                INITIAL_PLAYERS.forEach(p => {
+                    points[p.name] = 1000; // 모든 선수 기본 1000포인트 초기화 (팀장 됐을 때 대비)
+                });
+                return points;
+            });
+
+            // 현재 선택된 팀장 목록 계산
+            const selectedCaptains = useMemo(() => 
+                players.filter(p => p.isCaptain).map(p => p.name), 
+            [players]);
 
             // 경매 진행 중 사용할 팀 상태
             const [teams, setTeams] = useState([]);
@@ -140,14 +149,23 @@
                 setPlayers(prev => prev.map(p => p.name === name ? { ...p, tier: newTier } : p));
             };
 
-            const handlePointChange = (captainName, newPoints) => {
-                setInitialPoints(prev => ({
-                    ...prev,
-                    [captainName]: parseInt(newPoints) || 0
+            // 팀장 토글 핸들러
+            const toggleCaptain = (name) => {
+                setPlayers(prev => prev.map(p => {
+                    if (p.name === name) {
+                        return { ...p, isCaptain: !p.isCaptain };
+                    }
+                    return p;
                 }));
             };
 
-            // 상태 저장 함수 (실행 취소를 위해 호출)
+            const handlePointChange = (playerName, newPoints) => {
+                setInitialPoints(prev => ({
+                    ...prev,
+                    [playerName]: parseInt(newPoints) || 0
+                }));
+            };
+
             const saveHistory = () => {
                 const currentState = {
                     teams: JSON.parse(JSON.stringify(teams)),
@@ -158,7 +176,6 @@
                 setHistory(prev => [...prev, currentState]);
             };
 
-            // 실행 취소 함수
             const undoAction = () => {
                 if (history.length === 0) return;
                 
@@ -174,8 +191,14 @@
             };
 
             const startAuction = () => {
-                // 경매 시작 시, 설정된 initialPoints를 기반으로 팀 상태 초기화
-                const newTeams = CAPTAINS.map(name => ({
+                // 팀장이 4명이 아닌 경우 경고
+                if (selectedCaptains.length !== 4) {
+                    alert(`팀장은 정확히 4명이어야 합니다.\n현재 선택된 팀장: ${selectedCaptains.length}명`);
+                    return;
+                }
+
+                // 경매 시작 시, 선택된 팀장들을 기반으로 팀 초기화
+                const newTeams = selectedCaptains.map(name => ({
                     captain: name,
                     points: initialPoints[name], // 설정된 포인트 사용
                     members: [{ name: name, price: 0 }]
@@ -253,12 +276,10 @@
             const requestGoHome = () => setShowResetConfirm(true);
             const confirmGoHome = () => {
                 setShowResetConfirm(false);
-                // 티어와 초기 포인트 설정(initialPoints)은 그대로 유지됨
                 setView('setup');
                 setCurrentBid(null);
             };
 
-            // 결과 복사 기능
             const handleCopyResults = () => {
                 let text = "🏆 롤 멸망전 팀 구성 결과 🏆\n\n";
                 
@@ -323,7 +344,7 @@
                                 </h3>
                                 <p className="text-slate-300 mb-6">
                                     홈으로 돌아가면 <strong>현재 진행 중인 경매 상태는 초기화</strong>됩니다.<br/>
-                                    <span className="text-sm text-slate-400">(설정해둔 티어와 포인트는 유지됩니다)</span>
+                                    <span className="text-sm text-slate-400">(설정해둔 티어, 팀장, 포인트는 유지됩니다)</span>
                                 </p>
                                 <div className="flex justify-end gap-3">
                                     <button 
@@ -356,32 +377,41 @@
                                 <h1 className="text-4xl font-bold text-yellow-500 mb-2 flex justify-center items-center gap-3">
                                     <Trophy className="w-10 h-10" /> 롤 멸망전 드래프트 설정
                                 </h1>
-                                <p className="text-slate-400">참가자 티어 및 팀장 포인트를 설정해주세요.</p>
+                                <p className="text-slate-400">참가자 티어 및 팀장을 설정해주세요 (팀장 4명 필수)</p>
                             </header>
 
-                            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8 shadow-lg">
+                            {/* 동적 팀장 포인트 설정 섹션 */}
+                            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8 shadow-lg transition-all duration-500">
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-yellow-400">
-                                    <Gavel className="w-5 h-5" /> 팀장 시작 포인트 설정
+                                    <Gavel className="w-5 h-5" /> 팀장 시작 포인트 설정 ({selectedCaptains.length}/4 명 선택됨)
                                 </h2>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {CAPTAINS.map((captainName) => (
-                                        <div key={captainName} className="bg-slate-700 p-4 rounded-lg flex flex-col gap-2">
-                                            <span className="font-bold text-lg text-white">{captainName} 팀</span>
-                                            <input
-                                                type="number"
-                                                value={initialPoints[captainName]}
-                                                onChange={(e) => handlePointChange(captainName, e.target.value)}
-                                                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-yellow-500 outline-none"
-                                                placeholder="포인트"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
+                                {selectedCaptains.length > 0 ? (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {selectedCaptains.map((captainName) => (
+                                            <div key={captainName} className="bg-slate-700 p-4 rounded-lg flex flex-col gap-2 fade-in border border-yellow-500/30">
+                                                <span className="font-bold text-lg text-white flex items-center gap-1">
+                                                    <Crown className="w-4 h-4 text-yellow-400" /> {captainName}
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    value={initialPoints[captainName]}
+                                                    onChange={(e) => handlePointChange(captainName, e.target.value)}
+                                                    className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-yellow-500 outline-none"
+                                                    placeholder="포인트"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-slate-500">
+                                        아래 목록에서 팀장을 선택(👑)하면 포인트 입력칸이 나타납니다.
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8 shadow-lg">
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-400">
-                                    <Users className="w-5 h-5" /> 참가자 티어 설정 (SSS ~ D)
+                                    <Users className="w-5 h-5" /> 참가자 티어 및 팀장 선택
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                                     {ROLES.map(role => (
@@ -390,17 +420,24 @@
                                             {players
                                                 .filter(p => p.role === role)
                                                 .sort((a, b) => {
-                                                    // 1. 팀장 우선
                                                     if (a.isCaptain && !b.isCaptain) return -1;
                                                     if (!a.isCaptain && b.isCaptain) return 1;
-                                                    // 2. 티어 내림차순 (점수가 높은 순)
                                                     return TIER_SCORES[b.tier] - TIER_SCORES[a.tier];
                                                 })
                                                 .map(player => (
-                                                <div key={player.name} className={`flex items-center justify-between bg-slate-700/50 p-2 rounded border list-item-move ${player.isCaptain ? 'border-yellow-500/50' : 'border-slate-600'}`}>
+                                                <div key={player.name} className={`flex items-center justify-between bg-slate-700/50 p-2 rounded border list-item-move ${player.isCaptain ? 'border-yellow-500 bg-slate-700' : 'border-slate-600'}`}>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-medium">{player.name}</span>
-                                                        {player.isCaptain && <span className="text-xs text-yellow-500">👑</span>}
+                                                        {/* 팀장 토글 버튼 */}
+                                                        <button 
+                                                            onClick={() => toggleCaptain(player.name)}
+                                                            className={`p-1 rounded-full transition-colors ${player.isCaptain ? 'text-yellow-400 bg-yellow-400/20' : 'text-slate-600 hover:text-slate-400'}`}
+                                                            title="팀장 설정/해제"
+                                                        >
+                                                            <Crown className="w-4 h-4" />
+                                                        </button>
+                                                        <span className={`font-medium ${player.isCaptain ? 'text-yellow-200' : 'text-slate-200'}`}>
+                                                            {player.name}
+                                                        </span>
                                                     </div>
                                                     <select
                                                         value={player.tier}
@@ -416,13 +453,23 @@
                                 </div>
                             </div>
 
-                            <div className="flex justify-center">
+                            <div className="flex justify-center flex-col items-center gap-2">
                                 <button
                                     onClick={startAuction}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white text-xl font-bold py-4 px-12 rounded-full shadow-xl transition-transform transform hover:scale-105 flex items-center gap-3"
+                                    disabled={selectedCaptains.length !== 4}
+                                    className={`text-white text-xl font-bold py-4 px-12 rounded-full shadow-xl transition-all transform flex items-center gap-3 ${
+                                        selectedCaptains.length === 4 
+                                        ? 'bg-blue-600 hover:bg-blue-500 hover:scale-105 cursor-pointer' 
+                                        : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    }`}
                                 >
                                     경매 시작하기 <ArrowRight className="w-6 h-6" />
                                 </button>
+                                {selectedCaptains.length !== 4 && (
+                                    <p className="text-red-400 font-bold animate-pulse">
+                                        * 팀장을 4명 선택해야 시작할 수 있습니다. (현재: {selectedCaptains.length}명)
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ) : (
