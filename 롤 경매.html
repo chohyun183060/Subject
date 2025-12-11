@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>롤 멸망전 경매 시스템</title>
+    <!-- Tailwind CSS (디자인) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM (로직) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel (JSX 변환) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* 리스트 아이템 애니메이션 */
+        .list-item-move { transition: all 0.5s ease; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- 아이콘 컴포넌트 (SVG) ---
+        const Icon = ({ children, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+        const Trophy = (props) => <Icon {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></Icon>;
+        const Users = (props) => <Icon {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>;
+        const Gavel = (props) => <Icon {...props}><path d="m14.5 12.5-8 8a2.121 2.121 0 0 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></Icon>;
+        const ArrowRight = (props) => <Icon {...props}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></Icon>;
+        const Home = (props) => <Icon {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></Icon>;
+        const AlertCircle = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></Icon>;
+        const MinusCircle = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></Icon>;
+        const RotateCcw = (props) => <Icon {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></Icon>;
+        const ListIcon = (props) => <Icon {...props}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></Icon>;
+        const CopyIcon = (props) => <Icon {...props}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></Icon>;
+
+        // --- 데이터 정의 ---
+        const ROLES = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
+        const TIERS = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D'];
+        const TIER_SCORES = { SSS: 7, SS: 6, S: 5, A: 4, B: 3, C: 2, D: 1 };
+
+        const TIER_COLORS = {
+            SSS: 'text-rose-500 drop-shadow-[0_0_5px_rgba(244,63,94,0.5)]',
+            SS: 'text-purple-400',
+            S: 'text-blue-400',
+            A: 'text-emerald-400',
+            B: 'text-yellow-400',
+            C: 'text-slate-400',
+            D: 'text-amber-700',
+        };
+
+        const INITIAL_PLAYERS = [
+            { name: '태무', role: 'TOP', isCaptain: false },
+            { name: '건재', role: 'TOP', isCaptain: false },
+            { name: '승범', role: 'TOP', isCaptain: false },
+            { name: '현태', role: 'TOP', isCaptain: true },
+            { name: '인혁', role: 'JGL', isCaptain: true },
+            { name: '선우', role: 'JGL', isCaptain: false },
+            { name: '진현', role: 'JGL', isCaptain: false },
+            { name: '호연', role: 'JGL', isCaptain: false },
+            { name: '주호', role: 'MID', isCaptain: false },
+            { name: '찬현', role: 'MID', isCaptain: false },
+            { name: '호진', role: 'MID', isCaptain: false },
+            { name: '승원', role: 'MID', isCaptain: false },
+            { name: '희성', role: 'ADC', isCaptain: true },
+            { name: '성윤', role: 'ADC', isCaptain: false },
+            { name: '현빈', role: 'ADC', isCaptain: false },
+            { name: '세연', role: 'ADC', isCaptain: false },
+            { name: '일서', role: 'SUP', isCaptain: false },
+            { name: '필립', role: 'SUP', isCaptain: false },
+            { name: '관우', role: 'SUP', isCaptain: false },
+            { name: '희철', role: 'SUP', isCaptain: true },
+        ];
+
+        const CAPTAINS = ['현태', '인혁', '희성', '희철'];
+
+        const calculateTeamStats = (teamMembers, allPlayers) => {
+            if (teamMembers.length === 0) return { max: '-', min: '-', avg: '-' };
+
+            const scores = teamMembers.map(member => {
+                const player = allPlayers.find(p => p.name === member.name);
+                return TIER_SCORES[player.tier];
+            });
+
+            const maxScore = Math.max(...scores);
+            const minScore = Math.min(...scores);
+            const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+            const getTierName = (score) => Object.keys(TIER_SCORES).find(key => TIER_SCORES[key] === score) || '?';
+
+            return {
+                max: getTierName(maxScore),
+                min: getTierName(minScore),
+                avg: avgScore.toFixed(1)
+            };
+        };
+
+        // --- 메인 앱 컴포넌트 ---
+        function LoLAuctionApp() {
+            const [view, setView] = useState('setup');
+            const [players, setPlayers] = useState(INITIAL_PLAYERS.map(p => ({ ...p, tier: 'B' })));
+            const [teams, setTeams] = useState(
+                CAPTAINS.map(name => ({
+                    captain: name,
+                    points: 1000,
+                    members: [],
+                }))
+            );
+            
+            const [auctionQueue, setAuctionQueue] = useState([]);
+            const [currentBid, setCurrentBid] = useState(null);
+            const [unsoldList, setUnsoldList] = useState([]);
+            const [bidPrice, setBidPrice] = useState('');
+            const [errorMsg, setErrorMsg] = useState('');
+            const [showResetConfirm, setShowResetConfirm] = useState(false);
+            const [copyMsg, setCopyMsg] = useState('');
+
+            const handleTierChange = (name, newTier) => {
+                setPlayers(prev => prev.map(p => p.name === name ? { ...p, tier: newTier } : p));
+            };
+
+            const handlePointChange = (captainName, newPoints) => {
+                setTeams(prev => prev.map(t => t.captain === captainName ? { ...t, points: parseInt(newPoints) || 0 } : t));
+            };
+
+            const startAuction = () => {
+                const newTeams = teams.map(t => {
+                    const captainPlayer = players.find(p => p.name === t.captain);
+                    return {
+                        ...t,
+                        members: [{ name: captainPlayer.name, price: 0 }]
+                    };
+                });
+                setTeams(newTeams);
+
+                const pool = players.filter(p => !p.isCaptain);
+                for (let i = pool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pool[i], pool[j]] = [pool[j], pool[i]];
+                }
+                setAuctionQueue(pool);
+                setUnsoldList([]);
+                setCurrentBid(null);
+                setBidPrice('');
+                setErrorMsg('');
+                setView('auction');
+            };
+
+            const drawNextPlayer = () => {
+                if (auctionQueue.length === 0) return;
+                const next = auctionQueue[0];
+                setCurrentBid(next);
+                setAuctionQueue(prev => prev.slice(1));
+                setBidPrice('');
+                setErrorMsg('');
+            };
+
+            const confirmPurchase = (teamIndex) => {
+                const price = parseInt(bidPrice);
+                if (isNaN(price) || price < 0) {
+                    setErrorMsg("올바른 포인트를 입력해주세요.");
+                    return;
+                }
+                if (teams[teamIndex].points < price) {
+                    setErrorMsg("포인트가 부족합니다!");
+                    return;
+                }
+
+                setTeams(prev => prev.map((t, idx) => {
+                    if (idx === teamIndex) {
+                        return {
+                            ...t,
+                            points: t.points - price,
+                            members: [...t.members, { name: currentBid.name, price: price }]
+                        };
+                    }
+                    return t;
+                }));
+                
+                setCurrentBid(null);
+                setErrorMsg('');
+            };
+
+            const handleUnsold = () => {
+                setUnsoldList(prev => [...prev, currentBid]);
+                setCurrentBid(null);
+                setErrorMsg('');
+            };
+
+            const reviveUnsoldPlayer = (player) => {
+                if (currentBid) return;
+                setUnsoldList(prev => prev.filter(p => p.name !== player.name));
+                setCurrentBid(player);
+                setBidPrice('');
+                setErrorMsg('');
+            };
+
+            const requestGoHome = () => setShowResetConfirm(true);
+            const confirmGoHome = () => {
+                setShowResetConfirm(false);
+                setView('setup');
+                setCurrentBid(null);
+            };
+
+            // 결과 복사 기능
+            const handleCopyResults = () => {
+                let text = "🏆 롤 멸망전 팀 구성 결과 🏆\n\n";
+                
+                teams.forEach(team => {
+                    const stats = calculateTeamStats(team.members, players);
+                    text += `[${team.captain} 팀] (남은 포인트: ${team.points}P)\n`;
+                    text += `티어 현황: 평균 ${stats.avg} (Max ${stats.max} / Min ${stats.min})\n`;
+                    text += `--------------------------------\n`;
+                    
+                    ROLES.forEach(role => {
+                        const member = team.members.find(m => {
+                            const p = players.find(p => p.name === m.name);
+                            return p.role === role;
+                        });
+                        
+                        if (member) {
+                            const pData = players.find(p => p.name === member.name);
+                            const priceText = pData.isCaptain ? ' (팀장)' : ` - ${member.price}P`;
+                            text += `${role}: ${member.name} (${pData.tier})${priceText}\n`;
+                        } else {
+                            text += `${role}: (공석)\n`;
+                        }
+                    });
+                    text += `\n`;
+                });
+
+                if (auctionQueue.length > 0) {
+                    text += `📢 남은 매물 (${auctionQueue.length}명)\n`;
+                    const remainingNames = auctionQueue.map(p => `${p.name}(${p.tier})`).join(', ');
+                    text += remainingNames + '\n\n';
+                }
+
+                if (unsoldList.length > 0) {
+                    text += `⚠️ 유찰 목록 (${unsoldList.length}명)\n`;
+                    const unsoldNames = unsoldList.map(p => `${p.name}(${p.tier})`).join(', ');
+                    text += unsoldNames;
+                }
+
+                const textarea = document.createElement("textarea");
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopyMsg("결과가 클립보드에 복사되었습니다! 🎉");
+                } catch (err) {
+                    setCopyMsg("복사에 실패했습니다 ㅠㅠ");
+                }
+                document.body.removeChild(textarea);
+
+                setTimeout(() => setCopyMsg(''), 3000);
+            };
+
+            return (
+                <div className="min-h-screen">
+                    {/* 리셋 확인 모달 */}
+                    {showResetConfirm && (
+                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                            <div className="bg-slate-800 border border-slate-600 rounded-xl p-6 max-w-sm w-full shadow-2xl fade-in">
+                                <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                                    <AlertCircle className="text-yellow-500 w-5 h-5" /> 경고
+                                </h3>
+                                <p className="text-slate-300 mb-6">
+                                    홈으로 돌아가면 현재 진행 중인 경매 데이터가 모두 초기화됩니다. 정말 돌아가시겠습니까?
+                                </p>
+                                <div className="flex justify-end gap-3">
+                                    <button 
+                                        onClick={() => setShowResetConfirm(false)}
+                                        className="px-4 py-2 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 font-medium"
+                                    >
+                                        취소
+                                    </button>
+                                    <button 
+                                        onClick={confirmGoHome}
+                                        className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500 font-bold"
+                                    >
+                                        확인 (초기화)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 복사 성공 알림 토스트 */}
+                    {copyMsg && (
+                        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-full shadow-2xl z-50 fade-in flex items-center gap-2">
+                             <CopyIcon className="w-5 h-5" /> {copyMsg}
+                        </div>
+                    )}
+
+                    {view === 'setup' ? (
+                        <div className="max-w-6xl mx-auto p-6 bg-slate-900 min-h-screen text-slate-100">
+                            <header className="mb-8 text-center">
+                                <h1 className="text-4xl font-bold text-yellow-500 mb-2 flex justify-center items-center gap-3">
+                                    <Trophy className="w-10 h-10" /> 롤 멸망전 드래프트 설정
+                                </h1>
+                                <p className="text-slate-400">참가자 티어 및 팀장 포인트를 설정해주세요.</p>
+                            </header>
+
+                            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8 shadow-lg">
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-yellow-400">
+                                    <Gavel className="w-5 h-5" /> 팀장 시작 포인트 설정
+                                </h2>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {teams.map((team, idx) => (
+                                        <div key={team.captain} className="bg-slate-700 p-4 rounded-lg flex flex-col gap-2">
+                                            <span className="font-bold text-lg text-white">{team.captain} 팀</span>
+                                            <input
+                                                type="number"
+                                                value={team.points}
+                                                onChange={(e) => handlePointChange(team.captain, e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-yellow-500 outline-none"
+                                                placeholder="포인트"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8 shadow-lg">
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-400">
+                                    <Users className="w-5 h-5" /> 참가자 티어 설정 (SSS ~ D)
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                                    {ROLES.map(role => (
+                                        <div key={role} className="flex flex-col gap-3">
+                                            <h3 className="text-center font-bold text-slate-300 bg-slate-700 py-1 rounded">{role}</h3>
+                                            {players
+                                                .filter(p => p.role === role)
+                                                .sort((a, b) => {
+                                                    // 1. 팀장 우선
+                                                    if (a.isCaptain && !b.isCaptain) return -1;
+                                                    if (!a.isCaptain && b.isCaptain) return 1;
+                                                    // 2. 티어 내림차순 (점수가 높은 순)
+                                                    return TIER_SCORES[b.tier] - TIER_SCORES[a.tier];
+                                                })
+                                                .map(player => (
+                                                <div key={player.name} className={`flex items-center justify-between bg-slate-700/50 p-2 rounded border list-item-move ${player.isCaptain ? 'border-yellow-500/50' : 'border-slate-600'}`}>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium">{player.name}</span>
+                                                        {player.isCaptain && <span className="text-xs text-yellow-500">👑</span>}
+                                                    </div>
+                                                    <select
+                                                        value={player.tier}
+                                                        onChange={(e) => handleTierChange(player.name, e.target.value)}
+                                                        className={`bg-slate-800 text-sm border border-slate-600 rounded px-1 py-1 focus:outline-none focus:border-blue-500 font-bold ${TIER_COLORS[player.tier]}`}
+                                                    >
+                                                        {TIERS.map(t => <option key={t} value={t} className="text-white">{t}</option>)}
+                                                    </select>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-center">
+                                <button
+                                    onClick={startAuction}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white text-xl font-bold py-4 px-12 rounded-full shadow-xl transition-transform transform hover:scale-105 flex items-center gap-3"
+                                >
+                                    경매 시작하기 <ArrowRight className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-950 min-h-screen text-white p-4 flex flex-col">
+                            <div className="flex justify-between items-center mb-6 px-4">
+                                <button onClick={requestGoHome} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm md:text-base">
+                                    <Home className="w-5 h-5" /> <span className="hidden md:inline">설정/홈</span>
+                                </button>
+                                <div className="flex items-center gap-4">
+                                    <button 
+                                        onClick={handleCopyResults}
+                                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-lg border border-emerald-400/30"
+                                    >
+                                        <CopyIcon className="w-4 h-4" /> 결과 복사
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 flex flex-col lg:flex-row gap-6 mb-8 px-4">
+                                <div className="flex-1 flex flex-col items-center justify-start">
+                                    <div className="w-full max-w-2xl text-center">
+                                        {!currentBid ? (
+                                            <div className="py-12 bg-slate-900/80 rounded-2xl border-2 border-dashed border-slate-700 flex flex-col items-center justify-center gap-4 h-full min-h-[300px]">
+                                                {auctionQueue.length > 0 ? (
+                                                    <>
+                                                        <p className="text-slate-400 text-lg">다음 선수를 뽑아주세요</p>
+                                                        <button 
+                                                            onClick={drawNextPlayer}
+                                                            className="bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg animate-pulse"
+                                                        >
+                                                            매물 뽑기
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-green-400 text-xl font-bold">모든 경매가 종료되었습니다!</p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="bg-gradient-to-b from-slate-800 to-slate-900 p-8 rounded-2xl border-2 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)] relative overflow-hidden">
+                                                <div className="absolute top-0 left-0 w-full h-2 bg-blue-500"></div>
+                                                <div className="mb-2 text-blue-400 font-bold text-xl tracking-widest">{currentBid.role}</div>
+                                                <h2 className="text-6xl font-black text-white mb-4 drop-shadow-md">{currentBid.name}</h2>
+                                                <div className={`inline-block bg-slate-800 px-6 py-2 rounded-full text-3xl font-black mb-8 border border-slate-600 ${TIER_COLORS[currentBid.tier]}`}>
+                                                    {currentBid.tier}
+                                                </div>
+
+                                                <div className="flex flex-col gap-4 max-w-md mx-auto">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number"
+                                                            placeholder="낙찰 포인트 입력"
+                                                            value={bidPrice}
+                                                            onChange={(e) => {
+                                                                setBidPrice(e.target.value);
+                                                                setErrorMsg('');
+                                                            }}
+                                                            className={`w-full text-center bg-slate-950 border rounded-lg p-3 text-2xl font-bold text-white focus:ring-2 focus:ring-yellow-500 outline-none ${errorMsg ? 'border-red-500' : 'border-slate-600'}`}
+                                                        />
+                                                        {errorMsg && <p className="text-red-500 text-sm mt-1 font-bold animate-bounce">{errorMsg}</p>}
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                                                        {teams.map((team, idx) => {
+                                                            const isRoleFilled = team.members.some(member => {
+                                                                const playerInfo = players.find(p => p.name === member.name);
+                                                                return playerInfo.role === currentBid.role;
+                                                            });
+
+                                                            const canAfford = !bidPrice || parseInt(bidPrice) <= team.points;
+                                                            const isDisabled = !bidPrice || !canAfford || isRoleFilled;
+
+                                                            return (
+                                                                <button
+                                                                    key={team.captain}
+                                                                    onClick={() => confirmPurchase(idx)}
+                                                                    disabled={isDisabled}
+                                                                    className={`py-2 px-1 rounded font-bold text-sm transition-colors flex flex-col items-center justify-center ${
+                                                                        isDisabled
+                                                                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-70' 
+                                                                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                                                    }`}
+                                                                >
+                                                                    <span>{team.captain}팀</span>
+                                                                    <span className="text-xs font-normal">
+                                                                        {isRoleFilled ? '(포지션 꽉참)' : (!canAfford && bidPrice ? '(포인트 부족)' : '낙찰')}
+                                                                    </span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <button
+                                                        onClick={handleUnsold}
+                                                        className="mt-2 w-full bg-red-900/50 hover:bg-red-900 border border-red-800 text-red-200 py-2 rounded-lg font-bold flex items-center justify-center gap-2"
+                                                    >
+                                                        <MinusCircle className="w-4 h-4" /> 유찰시키기
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="lg:w-80 bg-slate-900 border border-slate-700 rounded-xl p-4 h-fit">
+                                    <h3 className="text-slate-300 font-bold mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
+                                        <ListIcon className="w-4 h-4" /> 남은 매물 ({auctionQueue.length})
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {ROLES.map(role => {
+                                            const remainingInRole = auctionQueue
+                                                .filter(p => p.role === role)
+                                                .sort((a, b) => TIER_SCORES[b.tier] - TIER_SCORES[a.tier]);
+
+                                            if (remainingInRole.length === 0) return null;
+                                            
+                                            return (
+                                                <div key={role}>
+                                                    <div className="text-xs font-bold text-slate-500 mb-1">{role}</div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {remainingInRole.map(p => (
+                                                            <div key={p.name} className="bg-slate-800 border border-slate-700 px-2 py-1 rounded text-sm flex items-center gap-2">
+                                                                <span className="text-slate-200">{p.name}</span>
+                                                                <span className={`text-xs font-bold ${TIER_COLORS[p.tier]}`}>{p.tier}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {auctionQueue.length === 0 && (
+                                            <div className="text-center text-slate-500 py-4 text-sm">
+                                                남은 매물이 없습니다.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 px-4">
+                                {teams.map((team) => {
+                                    const stats = calculateTeamStats(team.members, players);
+                                    
+                                    return (
+                                        <div key={team.captain} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
+                                            <div className="bg-slate-900 p-3 border-b border-slate-700 flex justify-between items-center">
+                                                <h3 className="font-bold text-lg text-white">{team.captain} 팀</h3>
+                                                <div className="text-yellow-400 font-mono font-bold">{team.points} P</div>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-3 bg-slate-800/50 p-2 text-xs border-b border-slate-700 text-center text-slate-300">
+                                                <div>
+                                                    <div className="text-slate-500">MAX</div>
+                                                    <div className={`font-bold ${TIER_COLORS[stats.max] || 'text-white'}`}>{stats.max}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-slate-500">AVG</div>
+                                                    <div className="font-bold text-white">{stats.avg}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-slate-500">MIN</div>
+                                                    <div className={`font-bold ${TIER_COLORS[stats.min] || 'text-white'}`}>{stats.min}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 flex-1">
+                                                <div className="space-y-2">
+                                                    {ROLES.map(role => {
+                                                        const member = team.members.find(m => {
+                                                            const pData = players.find(p => p.name === m.name);
+                                                            return pData.role === role;
+                                                        });
+                                                        
+                                                        return (
+                                                            <div key={role} className="flex items-center justify-between bg-slate-900/50 rounded px-2 py-1.5 h-9">
+                                                                <span className="text-xs font-bold text-slate-500 w-8">{role}</span>
+                                                                {member ? (
+                                                                    <div className="flex items-center gap-2 flex-1 justify-between">
+                                                                        <span className="text-sm font-medium text-blue-100">
+                                                                            {member.name} 
+                                                                            <span className={`text-xs font-bold ml-1 ${TIER_COLORS[players.find(p=>p.name===member.name).tier]}`}>
+                                                                                ({players.find(p=>p.name===member.name).tier})
+                                                                            </span>
+                                                                        </span>
+                                                                        {member.price > 0 && <span className="text-xs text-yellow-600">-{member.price}</span>}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-xs text-slate-700">- 공석 -</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {unsoldList.length > 0 && (
+                                <div className="mt-8 mx-4 bg-slate-900 p-4 rounded-lg border border-red-900/30">
+                                    <h4 className="text-red-400 font-bold mb-2 text-sm flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" /> 유찰된 플레이어 목록 {currentBid ? "(현재 경매 중에는 선택 불가)" : "(클릭하여 재경매)"}
+                                    </h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {unsoldList.map(p => (
+                                            <button 
+                                                key={p.name} 
+                                                onClick={() => reviveUnsoldPlayer(p)}
+                                                disabled={!!currentBid}
+                                                className={`px-3 py-1 rounded text-sm border border-slate-700 flex items-center gap-1 transition-all ${
+                                                    currentBid 
+                                                    ? 'bg-slate-800 opacity-50 cursor-not-allowed text-slate-600' 
+                                                    : 'bg-slate-800 hover:bg-slate-700 hover:border-blue-500 cursor-pointer text-slate-300'
+                                                }`}
+                                            >
+                                                <span className={currentBid ? "" : "group-hover:text-white"}>{p.role}</span>
+                                                <span className={currentBid ? "" : ""}>{p.name}</span>
+                                                <span className={`font-bold ${TIER_COLORS[p.tier]}`}>({p.tier})</span>
+                                                {!currentBid && <RotateCcw className="w-3 h-3 text-slate-600 ml-1" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LoLAuctionApp />);
+    </script>
+</body>
+</html>
