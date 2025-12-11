@@ -49,6 +49,7 @@
         const RotateCcw = (props) => <Icon {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></Icon>;
         const ListIcon = (props) => <Icon {...props}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></Icon>;
         const CopyIcon = (props) => <Icon {...props}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></Icon>;
+        const UndoIcon = (props) => <Icon {...props}><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></Icon>;
 
         // --- 데이터 정의 ---
         const ROLES = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
@@ -115,13 +116,14 @@
         function LoLAuctionApp() {
             const [view, setView] = useState('setup');
             const [players, setPlayers] = useState(INITIAL_PLAYERS.map(p => ({ ...p, tier: 'B' })));
-            const [teams, setTeams] = useState(
-                CAPTAINS.map(name => ({
-                    captain: name,
-                    points: 1000,
-                    members: [],
-                }))
+            
+            // 설정 화면에서 사용할 초기 포인트 상태 분리 (설정 유지용)
+            const [initialPoints, setInitialPoints] = useState(
+                CAPTAINS.reduce((acc, name) => ({ ...acc, [name]: 1000 }), {})
             );
+
+            // 경매 진행 중 사용할 팀 상태
+            const [teams, setTeams] = useState([]);
             
             const [auctionQueue, setAuctionQueue] = useState([]);
             const [currentBid, setCurrentBid] = useState(null);
@@ -130,23 +132,54 @@
             const [errorMsg, setErrorMsg] = useState('');
             const [showResetConfirm, setShowResetConfirm] = useState(false);
             const [copyMsg, setCopyMsg] = useState('');
+            
+            // 실행 취소(Undo)를 위한 히스토리 스택
+            const [history, setHistory] = useState([]);
 
             const handleTierChange = (name, newTier) => {
                 setPlayers(prev => prev.map(p => p.name === name ? { ...p, tier: newTier } : p));
             };
 
             const handlePointChange = (captainName, newPoints) => {
-                setTeams(prev => prev.map(t => t.captain === captainName ? { ...t, points: parseInt(newPoints) || 0 } : t));
+                setInitialPoints(prev => ({
+                    ...prev,
+                    [captainName]: parseInt(newPoints) || 0
+                }));
+            };
+
+            // 상태 저장 함수 (실행 취소를 위해 호출)
+            const saveHistory = () => {
+                const currentState = {
+                    teams: JSON.parse(JSON.stringify(teams)),
+                    auctionQueue: [...auctionQueue],
+                    currentBid: currentBid ? {...currentBid} : null,
+                    unsoldList: [...unsoldList],
+                };
+                setHistory(prev => [...prev, currentState]);
+            };
+
+            // 실행 취소 함수
+            const undoAction = () => {
+                if (history.length === 0) return;
+                
+                const lastState = history[history.length - 1];
+                setTeams(lastState.teams);
+                setAuctionQueue(lastState.auctionQueue);
+                setCurrentBid(lastState.currentBid);
+                setUnsoldList(lastState.unsoldList);
+                
+                setHistory(prev => prev.slice(0, -1));
+                setBidPrice('');
+                setErrorMsg('');
             };
 
             const startAuction = () => {
-                const newTeams = teams.map(t => {
-                    const captainPlayer = players.find(p => p.name === t.captain);
-                    return {
-                        ...t,
-                        members: [{ name: captainPlayer.name, price: 0 }]
-                    };
-                });
+                // 경매 시작 시, 설정된 initialPoints를 기반으로 팀 상태 초기화
+                const newTeams = CAPTAINS.map(name => ({
+                    captain: name,
+                    points: initialPoints[name], // 설정된 포인트 사용
+                    members: [{ name: name, price: 0 }]
+                }));
                 setTeams(newTeams);
 
                 const pool = players.filter(p => !p.isCaptain);
@@ -159,11 +192,13 @@
                 setCurrentBid(null);
                 setBidPrice('');
                 setErrorMsg('');
+                setHistory([]); 
                 setView('auction');
             };
 
             const drawNextPlayer = () => {
                 if (auctionQueue.length === 0) return;
+                saveHistory(); 
                 const next = auctionQueue[0];
                 setCurrentBid(next);
                 setAuctionQueue(prev => prev.slice(1));
@@ -182,6 +217,8 @@
                     return;
                 }
 
+                saveHistory(); 
+
                 setTeams(prev => prev.map((t, idx) => {
                     if (idx === teamIndex) {
                         return {
@@ -198,6 +235,7 @@
             };
 
             const handleUnsold = () => {
+                saveHistory(); 
                 setUnsoldList(prev => [...prev, currentBid]);
                 setCurrentBid(null);
                 setErrorMsg('');
@@ -205,6 +243,7 @@
 
             const reviveUnsoldPlayer = (player) => {
                 if (currentBid) return;
+                saveHistory(); 
                 setUnsoldList(prev => prev.filter(p => p.name !== player.name));
                 setCurrentBid(player);
                 setBidPrice('');
@@ -214,6 +253,7 @@
             const requestGoHome = () => setShowResetConfirm(true);
             const confirmGoHome = () => {
                 setShowResetConfirm(false);
+                // 티어와 초기 포인트 설정(initialPoints)은 그대로 유지됨
                 setView('setup');
                 setCurrentBid(null);
             };
@@ -282,7 +322,8 @@
                                     <AlertCircle className="text-yellow-500 w-5 h-5" /> 경고
                                 </h3>
                                 <p className="text-slate-300 mb-6">
-                                    홈으로 돌아가면 현재 진행 중인 경매 데이터가 모두 초기화됩니다. 정말 돌아가시겠습니까?
+                                    홈으로 돌아가면 <strong>현재 진행 중인 경매 상태는 초기화</strong>됩니다.<br/>
+                                    <span className="text-sm text-slate-400">(설정해둔 티어와 포인트는 유지됩니다)</span>
                                 </p>
                                 <div className="flex justify-end gap-3">
                                     <button 
@@ -295,7 +336,7 @@
                                         onClick={confirmGoHome}
                                         className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500 font-bold"
                                     >
-                                        확인 (초기화)
+                                        확인 (홈으로)
                                     </button>
                                 </div>
                             </div>
@@ -323,13 +364,13 @@
                                     <Gavel className="w-5 h-5" /> 팀장 시작 포인트 설정
                                 </h2>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {teams.map((team, idx) => (
-                                        <div key={team.captain} className="bg-slate-700 p-4 rounded-lg flex flex-col gap-2">
-                                            <span className="font-bold text-lg text-white">{team.captain} 팀</span>
+                                    {CAPTAINS.map((captainName) => (
+                                        <div key={captainName} className="bg-slate-700 p-4 rounded-lg flex flex-col gap-2">
+                                            <span className="font-bold text-lg text-white">{captainName} 팀</span>
                                             <input
                                                 type="number"
-                                                value={team.points}
-                                                onChange={(e) => handlePointChange(team.captain, e.target.value)}
+                                                value={initialPoints[captainName]}
+                                                onChange={(e) => handlePointChange(captainName, e.target.value)}
                                                 className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-yellow-500 outline-none"
                                                 placeholder="포인트"
                                             />
@@ -391,6 +432,14 @@
                                     <Home className="w-5 h-5" /> <span className="hidden md:inline">설정/홈</span>
                                 </button>
                                 <div className="flex items-center gap-4">
+                                    {history.length > 0 && (
+                                        <button 
+                                            onClick={undoAction}
+                                            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-lg border border-slate-500/30"
+                                        >
+                                            <UndoIcon className="w-4 h-4" /> 실행 취소
+                                        </button>
+                                    )}
                                     <button 
                                         onClick={handleCopyResults}
                                         className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-lg border border-emerald-400/30"
