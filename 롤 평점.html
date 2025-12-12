@@ -344,8 +344,6 @@
 
     /**********************
      * Team identity helpers (side swap-safe)
-     * - teamKeys: { BLUE:'A'|'B', RED:'A'|'B' }
-     * - Series score counts by teamKey, NOT by side.
      **********************/
     function ensureMatchTeamKeys(match) {
       if (!match) return;
@@ -372,6 +370,13 @@
       if (side === 'BLUE') return match.blue?.name || 'BLUE';
       if (side === 'RED') return match.red?.name || 'RED';
       return key;
+    }
+
+    function getSeriesMatches(seriesId) {
+      return (state.matches || [])
+        .filter(m => m.seriesId === seriesId)
+        .slice()
+        .sort((a,b) => (a.gameNo || 1) - (b.gameNo || 1) || (new Date(a.createdAt) - new Date(b.createdAt)));
     }
 
     function getSeriesTeamName(seriesId, key) {
@@ -408,10 +413,8 @@
         gameNo,
         createdAt: nowISO(),
         status: 'drafting',
-        // current sides
         blue: { name: preset?.blueTeamName || 'BLUE', players: (preset?.bluePlayers || []).slice(0,5) },
         red:  { name: preset?.redTeamName  || 'RED',  players: (preset?.redPlayers  || []).slice(0,5) },
-        // stable team mapping for series score (default: A=BLUE, B=RED)
         teamKeys: opts.teamKeys ? { ...opts.teamKeys } : { BLUE:'A', RED:'B' },
         draft: { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } },
         result: { winnerSide: null, winnerKey: null, notes: '' },
@@ -432,15 +435,6 @@
       return m;
     }
 
-    function getSeriesMatches(seriesId) {
-      return (state.matches || [])
-        .filter(m => m.seriesId === seriesId)
-        .slice()
-        .sort((a,b) => (a.gameNo || 1) - (b.gameNo || 1) || (new Date(a.createdAt) - new Date(b.createdAt)));
-    }
-
-    // 강화: 3승(=winNeed) 달성 시 즉시 winnerKey/decidedAtGameNo를 기록해 "시리즈 종료"로 판정
-    // 주의: 승수는 side(BLUE/RED)가 아니라 teamKey(A/B) 기준으로 카운트
     function computeSeriesScore(seriesId) {
       const ms = getSeriesMatches(seriesId);
       let aWins = 0;
@@ -475,7 +469,6 @@
       return { aWins, bWins, finished, played, total: SERIES.bo, winnerKey, decidedAtGameNo };
     }
 
-    // 시리즈가 3승으로 종료된 이후(결정 게임보다 큰 gameNo)의 미완료 매치는 진행 불가 처리
     function getSeriesLockForMatch(match) {
       const score = computeSeriesScore(match.seriesId);
       const gno = Number(match.gameNo || 1);
@@ -490,7 +483,7 @@
       for (const m of state.matches) {
         if (m.seriesId !== match.seriesId) continue;
         const mn = Number(m.gameNo || 1);
-        if (mn >= gno) continue; // only previous games
+        if (mn >= gno) continue;
         for (const c of (m.draft?.bans?.BLUE || [])) locked.add(c);
         for (const c of (m.draft?.bans?.RED  || [])) locked.add(c);
         for (const c of (m.draft?.picks?.BLUE|| [])) locked.add(c);
@@ -551,7 +544,6 @@
       const taken = getAlreadyTakenInMatch(match);
       if (taken.has(champId)) return { ok:false, reason:'이미 밴/픽된 챔피언입니다.' };
 
-      // BO5 피어리스(시리즈) 룰: 이전 판에서 밴/픽된 챔피언은 이후 판에서 밴/픽 불가
       const locked = getSeriesLockedChampsBeforeMatch(match);
       if (locked.has(champId)) return { ok:false, reason:'BO5 피어리스 룰: 이전 판에서 밴/픽된 챔피언은 다음 판부터 사용할 수 없습니다.' };
 
@@ -666,7 +658,6 @@
       }
       match.potm = best?.player || null;
 
-      // Winner must be selected by TEAM (A/B). We still keep winnerSide for display/back-compat.
       if (!match.result) match.result = { winnerSide: null, winnerKey: null, notes: '' };
 
       if (!match.result.winnerKey && !match.result.winnerSide) {
@@ -674,7 +665,6 @@
         return;
       }
 
-      // Backfill either direction
       if (!match.result.winnerKey && match.result.winnerSide) {
         match.result.winnerKey = getTeamKeyForSide(match, match.result.winnerSide);
       }
@@ -748,7 +738,6 @@
       match.teamKeys.BLUE = match.teamKeys.RED;
       match.teamKeys.RED = t;
 
-      // winner selection reset (just in case)
       match.result = match.result || { winnerSide: null, winnerKey: null, notes: '' };
       match.result.winnerSide = null;
       match.result.winnerKey = null;
@@ -786,7 +775,29 @@
       dl.innerHTML = players.map(p => `<option value="${escapeHtml(p)}"></option>`).join('');
     }
 
+    // FIX: match가 없을 때(히스토리 마지막 1개 삭제 등) ensureCurrentMatch()가 호출되어
+    // 새 매치가 자동 생성되는 문제를 방지하기 위해, 헤더는 null 매치도 처리하도록 함.
     function renderMatchHeader(match) {
+      if (!match) {
+        return `
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  ${badge('현재 시리즈 없음', 'border-slate-700 text-slate-200')}
+                </div>
+                <div class="mt-2 text-sm text-slate-300">기록이 없거나(삭제됨) 현재 선택된 매치가 없습니다. 새 시리즈를 만들거나 Import로 복원하세요.</div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
+                <button data-action="export" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Export</button>
+                <button data-action="import" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Import</button>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
       const lock = getSeriesLockForMatch(match);
       const step = draftStep(match);
       const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
@@ -941,7 +952,7 @@
       const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
       const lockNote = lock.locked ? `
         <div class="mt-3 p-3 rounded-xl bg-amber-950/20 border border-amber-700/30 text-amber-200 text-xs">
-          시리즈가 <span class="font-extrabold">${escapeHtml(winnerName || lock.winnerKey || '-')}(3승)</span>으로 종료되어, Game ${escapeHtml(match.gameNo || 1)}은 진행할 수 없습니다.
+          시리즈가 <span class="font-extrabold">${escapeHtml(winnerName || lock.winnerKey || '-')} (3승)</span>으로 종료되어, Game ${escapeHtml(match.gameNo || 1)}은 진행할 수 없습니다.
         </div>
       ` : '';
 
@@ -1155,7 +1166,6 @@
       const allPlayers = [...(match.blue.players||[]), ...(match.red.players||[])].filter(Boolean);
       const stepDone = match.draft.stepIndex >= DRAFT_STEPS.length;
 
-      // Winner selection is TEAM-based (A/B), not side-based (BLUE/RED)
       const winnerBadge = (key) => {
         const active = match.result?.winnerKey === key;
         const side = getSideForTeamKey(match, key);
@@ -1429,7 +1439,7 @@
 
       return `
         <div class="grid grid-cols-1 gap-4">
-          ${renderMatchHeader(ensureCurrentMatch())}
+          ${renderMatchHeader(getCurrentMatch())}
 
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1523,7 +1533,7 @@
 
       return `
         <div class="grid grid-cols-1 gap-4">
-          ${renderMatchHeader(ensureCurrentMatch())}
+          ${renderMatchHeader(getCurrentMatch())}
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="flex items-center justify-between">
               <div>
@@ -1567,7 +1577,7 @@
 
       return `
         <div class="grid grid-cols-1 gap-4">
-          ${renderMatchHeader(ensureCurrentMatch())}
+          ${renderMatchHeader(getCurrentMatch())}
 
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="text-lg font-extrabold">설정</div>
@@ -1652,7 +1662,6 @@
       syncPlayerDatalist();
     }
 
-    // Champion picker partial update: updates list/count only, never replaces the search input element.
     function updateChampionPickerPartial() {
       if ((state.view || 'draft') !== 'draft') return;
       const match = getCurrentMatch();
@@ -1851,7 +1860,6 @@
         return;
       }
 
-      // Home shortcuts
       if (action === 'homeStart') {
         ensureCurrentMatch();
         state.view = 'draft';
@@ -1886,7 +1894,6 @@
         const allow = canSwapSides(m);
         if (!allow.ok) { toast(allow.reason); return; }
         swapSides(m);
-        // swapSides() will render(), but the modal content must be refreshed too
         openSetupModal(m);
         return;
       }
@@ -1965,7 +1972,6 @@
         if (!key) return;
         match.result = match.result || { winnerSide: null, winnerKey: null, notes: '' };
         match.result.winnerKey = key;
-        // keep side for display/back-compat
         match.result.winnerSide = getSideForTeamKey(match, key);
         saveAppState();
         render();
@@ -2184,7 +2190,6 @@
       }
     });
 
-    // IME(한글) 조합 입력 이벤트 처리
     document.addEventListener('compositionstart', (e) => {
       const t = e.target;
       if (t && t.matches && t.matches('[data-input="champQuery"]')) ui._isComposing = true;
@@ -2321,7 +2326,6 @@
     (async function init() {
       await loadChampions();
 
-      // migrate old data (if any)
       if (Array.isArray(state.matches)) {
         for (const m of state.matches) {
           if (!m.seriesId) m.seriesId = m.id;
@@ -2338,7 +2342,6 @@
           if (!m.status) m.status = 'drafting';
           ensureMatchTeamKeys(m);
 
-          // backfill winnerKey for completed matches if missing
           if (m.status === 'completed' && !m.result.winnerKey && m.result.winnerSide) {
             m.result.winnerKey = getTeamKeyForSide(m, m.result.winnerSide);
           }
@@ -2357,4 +2360,3 @@
   </script>
 </body>
 </html>
-
