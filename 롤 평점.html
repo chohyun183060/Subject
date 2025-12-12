@@ -1,0 +1,2139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>롤 멸망전 - 피어리스 드래프트 & POTM</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root { color-scheme: dark; }
+    .scrollbar::-webkit-scrollbar{height:10px;width:10px}
+    .scrollbar::-webkit-scrollbar-thumb{background:#334155;border-radius:999px}
+    .scrollbar::-webkit-scrollbar-track{background:#0b1220}
+    .no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
+    .no-spin{ -moz-appearance: textfield; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-black tracking-tight">🎮 롤 멸망전 <span class="text-sky-300">피어리스 드래프트</span> & <span class="text-amber-300">POTM</span></h1>
+        <p class="text-slate-400 text-sm mt-1">라이엇 API 없이 수동 입력 · 데이터는 이 브라우저(LocalStorage)에 저장됩니다.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button data-nav="home" class="navBtn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold">홈</button>
+        <button data-nav="draft" class="navBtn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold">밴픽</button>
+        <button data-nav="report" class="navBtn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold">경기 평점/POTM</button>
+        <button data-nav="stats" class="navBtn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold">통계/랭킹</button>
+        <button data-nav="history" class="navBtn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
+        <button data-nav="settings" class="navBtn px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold">설정</button>
+      </div>
+    </header>
+
+    <main id="app" class="mt-6"></main>
+
+    <footer class="mt-10 text-xs text-slate-500">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <p>드래프트 순서: B R B R B R(밴) → B R R B R B(픽) → R B R B(밴) → R B B R(픽)</p>
+        <p>© Local-only web app · Export/Import로 백업 가능</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal -->
+  <div id="modalRoot" class="fixed inset-0 hidden">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative max-w-2xl mx-auto mt-10 md:mt-20 p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <h3 id="modalTitle" class="font-bold">Modal</h3>
+          <button data-action="modalClose" class="px-2 py-1 rounded-lg hover:bg-slate-800">닫기</button>
+        </div>
+        <div id="modalBody" class="p-4"></div>
+        <div id="modalFooter" class="px-4 py-3 border-t border-slate-800 flex justify-end gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 hidden">
+    <div class="bg-slate-900/95 border border-slate-700 text-slate-100 px-4 py-2 rounded-xl shadow-lg text-sm"></div>
+  </div>
+
+  <!-- Global datalist for player name autocomplete -->
+  <datalist id="playerDatalist"></datalist>
+
+  <script>
+    /**********************
+     * Storage & Utilities
+     **********************/
+    const APP_KEY = 'lol_mangmang_v1';
+    const CHAMP_CACHE_KEY = 'lol_mangmang_champs_v1';
+
+    const uid = () => Math.random().toString(16).slice(2) + '-' + Date.now().toString(16);
+    const nowISO = () => new Date().toISOString();
+    const fmtDate = (iso) => {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      } catch { return iso; }
+    };
+    const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+    const escapeHtml = (s) => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    /**********************
+     * Search helpers (Korean-friendly)
+     **********************/
+    const CHOSUNG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+    function getChosung(str) {
+      return (str || '').toString().split('').map(ch => {
+        const code = ch.charCodeAt(0);
+        // Hangul syllables
+        if (code >= 0xAC00 && code <= 0xD7A3) {
+          const idx = Math.floor((code - 0xAC00) / 588);
+          return CHOSUNG[idx] || '';
+        }
+        // Hangul Jamo consonants (ㄱ-ㅎ)
+        if (code >= 0x3131 && code <= 0x314E) return ch;
+        return '';
+      }).join('');
+    }
+
+    function normalizeSearch(str) {
+      return (str || '').toString().toLowerCase()
+        .replace(/[\s'’"·\.\-_/()]/g, '');
+    }
+
+    function isChosungQuery(qNorm) {
+      const s = (qNorm || '').replace(/\s+/g, '');
+      return s.length > 0 && /^[ㄱ-ㅎ]+$/.test(s);
+    }
+
+    function champMatches(c, query) {
+      const q = normalizeSearch(query);
+      if (!q) return true;
+      const name = normalizeSearch(c?.name || '');
+      const id = normalizeSearch(c?.id || '');
+      if (name.includes(q) || id.includes(q)) return true;
+      if (isChosungQuery(q)) {
+        const cho = getChosung(c?.name || '');
+        if (cho.includes(q)) return true;
+      }
+      return false;
+    }
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      const box = t.querySelector('div');
+      box.textContent = msg;
+      t.classList.remove('hidden');
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => t.classList.add('hidden'), 1800);
+    }
+
+    function loadAppState() {
+      const raw = localStorage.getItem(APP_KEY);
+      if (!raw) {
+        return {
+          version: 1,
+          view: 'home',
+          players: ['Blue1','Blue2','Blue3','Blue4','Blue5','Red1','Red2','Red3','Red4','Red5'],
+          matches: [],
+          currentMatchId: null,
+          lastTeamPreset: {
+            blueTeamName: 'BLUE',
+            redTeamName: 'RED',
+            bluePlayers: ['Blue1','Blue2','Blue3','Blue4','Blue5'],
+            redPlayers: ['Red1','Red2','Red3','Red4','Red5'],
+          }
+        };
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return loadAppState.__fallback || (loadAppState.__fallback = {
+          version: 1,
+          view: 'home',
+          players: [],
+          matches: [],
+          currentMatchId: null,
+          lastTeamPreset: { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] }
+        });
+      }
+    }
+
+    function saveAppState() {
+      localStorage.setItem(APP_KEY, JSON.stringify(state));
+    }
+
+    function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
+
+    /**********************
+     * Champion Data
+     **********************/
+    const fallbackChamps = [
+      { id:'Aatrox', name:'Aatrox' },{ id:'Ahri', name:'Ahri' },{ id:'Akali', name:'Akali' },{ id:'Alistar', name:'Alistar' },
+      { id:'Amumu', name:'Amumu' },{ id:'Annie', name:'Annie' },{ id:'Aphelios', name:'Aphelios' },{ id:'Ashe', name:'Ashe' },
+      { id:'AurelionSol', name:'Aurelion Sol' },{ id:'Azir', name:'Azir' },{ id:'Bard', name:'Bard' },{ id:'Blitzcrank', name:'Blitzcrank' },
+      { id:'Brand', name:'Brand' },{ id:'Braum', name:'Braum' },{ id:'Caitlyn', name:'Caitlyn' },{ id:'Camille', name:'Camille' },
+      { id:'Cassiopeia', name:'Cassiopeia' },{ id:'Darius', name:'Darius' },{ id:'Diana', name:'Diana' },{ id:'Draven', name:'Draven' },
+      { id:'Ekko', name:'Ekko' },{ id:'Elise', name:'Elise' },{ id:'Ezreal', name:'Ezreal' },{ id:'Fiora', name:'Fiora' },
+      { id:'Fizz', name:'Fizz' },{ id:'Galio', name:'Galio' },{ id:'Garen', name:'Garen' },{ id:'Gnar', name:'Gnar' },
+      { id:'Gragas', name:'Gragas' },{ id:'Graves', name:'Graves' },{ id:'Gwen', name:'Gwen' },{ id:'Hecarim', name:'Hecarim' },
+      { id:'Irelia', name:'Irelia' },{ id:'Janna', name:'Janna' },{ id:'JarvanIV', name:'Jarvan IV' },{ id:'Jax', name:'Jax' },
+      { id:'Jhin', name:'Jhin' },{ id:'Jinx', name:'Jinx' },{ id:'Kaisa', name:"Kai'Sa" },{ id:'Karma', name:'Karma' },
+      { id:'Kassadin', name:'Kassadin' },{ id:'Katarina', name:'Katarina' },{ id:'Kayle', name:'Kayle' },{ id:'Kayn', name:'Kayn' },
+      { id:'Khazix', name:"Kha'Zix" },{ id:'Kindred', name:'Kindred' },{ id:'LeeSin', name:'Lee Sin' },{ id:'Leona', name:'Leona' },
+      { id:'Lissandra', name:'Lissandra' },{ id:'Lucian', name:'Lucian' },{ id:'Lulu', name:'Lulu' },{ id:'Lux', name:'Lux' },
+      { id:'Malphite', name:'Malphite' },{ id:'Maokai', name:'Maokai' },{ id:'MissFortune', name:'Miss Fortune' },{ id:'Morgana', name:'Morgana' },
+      { id:'Nami', name:'Nami' },{ id:'Nasus', name:'Nasus' },{ id:'Nautilus', name:'Nautilus' },{ id:'Neeko', name:'Neeko' },
+      { id:'Nidalee', name:'Nidalee' },{ id:'Nocturne', name:'Nocturne' },{ id:'Orianna', name:'Orianna' },{ id:'Ornn', name:'Ornn' },
+      { id:'Poppy', name:'Poppy' },{ id:'Rakan', name:'Rakan' },{ id:'Rammus', name:'Rammus' },{ id:'Renekton', name:'Renekton' },
+      { id:'Riven', name:'Riven' },{ id:'Samira', name:'Samira' },{ id:'Sejuani', name:'Sejuani' },{ id:'Senna', name:'Senna' },
+      { id:'Seraphine', name:'Seraphine' },{ id:'Sett', name:'Sett' },{ id:'Shaco', name:'Shaco' },{ id:'Shen', name:'Shen' },
+      { id:'Sivir', name:'Sivir' },{ id:'Sona', name:'Sona' },{ id:'Soraka', name:'Soraka' },{ id:'Sylas', name:'Sylas' },
+      { id:'Syndra', name:'Syndra' },{ id:'TahmKench', name:'Tahm Kench' },{ id:'Taliyah', name:'Taliyah' },{ id:'Teemo', name:'Teemo' },
+      { id:'Thresh', name:'Thresh' },{ id:'Tristana', name:'Tristana' },{ id:'Tryndamere', name:'Tryndamere' },{ id:'TwistedFate', name:'Twisted Fate' },
+      { id:'Vayne', name:'Vayne' },{ id:'Veigar', name:'Veigar' },{ id:'Vex', name:'Vex' },{ id:'Vi', name:'Vi' },
+      { id:'Viktor', name:'Viktor' },{ id:'Vladimir', name:'Vladimir' },{ id:'Volibear', name:'Volibear' },{ id:'Warwick', name:'Warwick' },
+      { id:'Wukong', name:'Wukong' },{ id:'Xayah', name:'Xayah' },{ id:'XinZhao', name:'Xin Zhao' },{ id:'Yasuo', name:'Yasuo' },
+      { id:'Yone', name:'Yone' },{ id:'Yuumi', name:'Yuumi' },{ id:'Zed', name:'Zed' },{ id:'Zeri', name:'Zeri' },
+      { id:'Ziggs', name:'Ziggs' },{ id:'Zilean', name:'Zilean' },{ id:'Zoe', name:'Zoe' },{ id:'Zyra', name:'Zyra' },
+    ];
+
+    let champs = []; // {id,name}
+    let champVersion = '14.24.1';
+
+    async function loadChampions() {
+      // 1) try cache
+      const cached = localStorage.getItem(CHAMP_CACHE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed?.version && Array.isArray(parsed?.champs) && parsed.champs.length) {
+            champVersion = parsed.version;
+            champs = parsed.champs;
+            return;
+          }
+        } catch {}
+      }
+
+      // 2) try fetch from Data Dragon (not Riot API auth; public static)
+      try {
+        const vRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json', { cache: 'no-store' });
+        if (vRes.ok) {
+          const versions = await vRes.json();
+          if (Array.isArray(versions) && versions[0]) champVersion = versions[0];
+        }
+
+        const cRes = await fetch(`https://ddragon.leagueoflegends.com/cdn/${champVersion}/data/ko_KR/champion.json`, { cache: 'no-store' });
+        if (!cRes.ok) throw new Error('champion fetch failed');
+        const data = await cRes.json();
+        const list = Object.values(data?.data || {}).map(x => ({ id: x.id, name: x.name }));
+        if (!list.length) throw new Error('empty champ list');
+        champs = list.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+        localStorage.setItem(CHAMP_CACHE_KEY, JSON.stringify({ version: champVersion, champs }));
+      } catch (e) {
+        champs = fallbackChamps;
+      }
+    }
+
+    function champImgUrl(champId) {
+      // Some IDs include apostrophes/spaces in display name but id is safe (e.g., MonkeyKing for Wukong in some versions)
+      return `https://ddragon.leagueoflegends.com/cdn/${champVersion}/img/champion/${champId}.png`;
+    }
+
+    function champAvatar(champId, size = 48) {
+      const c = champs.find(x => x.id === champId);
+      const label = c?.name || champId;
+      // image with fallback initials
+      const initials = label.split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase();
+      const bg = 'bg-slate-800';
+      return `
+        <div class="relative" style="width:${size}px;height:${size}px">
+          <img src="${champImgUrl(champId)}" alt="${escapeHtml(label)}" class="w-full h-full rounded-xl border border-slate-700 object-cover" onerror="this.style.display='none'; this.parentElement.querySelector('[data-fallback]').classList.remove('hidden');" />
+          <div data-fallback class="hidden w-full h-full rounded-xl border border-slate-700 ${bg} flex items-center justify-center font-black">${escapeHtml(initials || '?')}</div>
+        </div>
+      `;
+    }
+
+    /**********************
+     * Draft Order
+     **********************/
+    const DRAFT_STEPS = [
+      // Ban phase 1 (alternate: B R B R B R)
+      { type:'ban', side:'BLUE', label:'BLUE 밴 1' },
+      { type:'ban', side:'RED',  label:'RED 밴 1' },
+      { type:'ban', side:'BLUE', label:'BLUE 밴 2' },
+      { type:'ban', side:'RED',  label:'RED 밴 2' },
+      { type:'ban', side:'BLUE', label:'BLUE 밴 3' },
+      { type:'ban', side:'RED',  label:'RED 밴 3' },
+
+      // Pick phase 1: B / R R / B / R / B
+      { type:'pick', side:'BLUE', label:'BLUE 픽 1' },
+      { type:'pick', side:'RED',  label:'RED 픽 1' },
+      { type:'pick', side:'RED',  label:'RED 픽 2' },
+      { type:'pick', side:'BLUE', label:'BLUE 픽 2' },
+      { type:'pick', side:'RED',  label:'RED 픽 3' },
+      { type:'pick', side:'BLUE', label:'BLUE 픽 3' },
+
+      // Ban phase 2 (alternate: R B R B)
+      { type:'ban', side:'RED',  label:'RED 밴 4' },
+      { type:'ban', side:'BLUE', label:'BLUE 밴 4' },
+      { type:'ban', side:'RED',  label:'RED 밴 5' },
+      { type:'ban', side:'BLUE', label:'BLUE 밴 5' },
+
+      // Pick phase 2: R / B B / R
+      { type:'pick', side:'RED',  label:'RED 픽 4' },
+      { type:'pick', side:'BLUE', label:'BLUE 픽 4' },
+      { type:'pick', side:'BLUE', label:'BLUE 픽 5' },
+      { type:'pick', side:'RED',  label:'RED 픽 5' },
+    ];
+
+    /**********************
+     * Scoring
+     **********************/
+    function computeScores(entry) {
+      const k = Number(entry.k || 0);
+      const d = Number(entry.d || 0);
+      const a = Number(entry.a || 0);
+      const cs = Number(entry.cs || 0);
+      const vis = Number(entry.vision || 0);
+
+      // New: single rating (1~10)
+      let rating = Number(entry.rating);
+
+      // Backward compatibility: if old fields exist but rating is missing, approximate rating.
+      if (!Number.isFinite(rating) || rating <= 0) {
+        const hasOld = entry && (entry.carry != null || entry.role != null || entry.draft != null);
+        if (hasOld) {
+          const carry = Number(entry.carry || 3);
+          const role = Number(entry.role || 3);
+          const draft = Number(entry.draft || 3);
+          rating = Math.round(((carry + role + draft) / 3) * 2); // 1~5 -> 2~10
+        } else {
+          rating = 7;
+        }
+      }
+      rating = clamp(rating, 1, 10);
+
+      // Objective: intuitive weighted sum
+      const objective = (k * 3 + a * 2 - d * 2) + (cs * 0.05) + (vis * 0.2);
+
+      // Rating score (0~100 scale)
+      const subjective = rating * 10;
+
+      // Total: Objective(70%) + Rating(30%)
+      const total = objective * 0.7 + subjective * 0.3;
+
+      return {
+        objective: Math.round(objective * 100) / 100,
+        rating,
+        subjective: Math.round(subjective * 100) / 100,
+        total: Math.round(total * 100) / 100,
+      };
+    }
+
+    /**********************
+     * Global State
+     **********************/
+    let state = loadAppState();
+    const ui = {
+      champQuery: '',
+      champMode: 'grid',
+      showOnlyAvailable: false,
+      lastDraftTeamHint: 'AUTO',
+      // IME(한글) 조합 입력 중 리렌더로 인해 입력이 끊기는 문제 방지용
+      _isComposing: false,
+      _skipNextChampQueryInput: false,
+    };
+
+    function getMatchById(id) {
+      return state.matches.find(m => m.id === id) || null;
+    }
+
+    function getCurrentMatch() {
+      if (!state.currentMatchId) return null;
+      return getMatchById(state.currentMatchId);
+    }
+
+    function ensureCurrentMatch() {
+      let m = getCurrentMatch();
+      if (!m) {
+        // auto-create a match if none exists
+        const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+        m = createNewMatch(preset);
+        state.currentMatchId = m.id;
+        saveAppState();
+      }
+      return m;
+    }
+
+    function createEmptyRatings(players) {
+      const obj = {};
+      for (const p of players) {
+        obj[p] = {
+          k: 0, d: 0, a: 0, cs: 0, vision: 0,
+          rating: 7, // 1~10
+          comment: ''
+        };
+      }
+      return obj;
+    }
+
+    function createNewMatch(preset) {
+      const m = {
+        id: uid(),
+        createdAt: nowISO(),
+        status: 'drafting',
+        blue: {
+          name: preset?.blueTeamName || 'BLUE',
+          players: (preset?.bluePlayers || []).slice(0,5),
+        },
+        red: {
+          name: preset?.redTeamName || 'RED',
+          players: (preset?.redPlayers || []).slice(0,5),
+        },
+        draft: {
+          stepIndex: 0,
+          actions: [], // {type, side, teamName, champId}
+          bans: { BLUE: [], RED: [] },
+          picks: { BLUE: [], RED: [] },
+        },
+        result: {
+          winnerSide: null, // 'BLUE'|'RED'
+          notes: '',
+        },
+        ratings: createEmptyRatings([...(preset?.bluePlayers||[]).slice(0,5), ...(preset?.redPlayers||[]).slice(0,5)]),
+        potm: null,
+      };
+      state.matches.unshift(m);
+      state.currentMatchId = m.id;
+      state.lastTeamPreset = {
+        blueTeamName: m.blue.name,
+        redTeamName: m.red.name,
+        bluePlayers: m.blue.players,
+        redPlayers: m.red.players,
+      };
+      saveAppState();
+      return m;
+    }
+
+    function sideToTeamName(match, side) {
+      return side === 'BLUE' ? match.blue.name : match.red.name;
+    }
+
+    function getUsedChampsByTeamName(teamName, excludeMatchId = null) {
+      const used = new Set();
+      for (const m of state.matches) {
+        if (excludeMatchId && m.id === excludeMatchId) continue;
+        if (!m.draft?.picks) continue;
+        const tBlue = m.blue?.name;
+        const tRed = m.red?.name;
+        if (tBlue === teamName) for (const c of (m.draft.picks.BLUE || [])) used.add(c);
+        if (tRed === teamName) for (const c of (m.draft.picks.RED || [])) used.add(c);
+      }
+      return used;
+    }
+
+    function getAlreadyTakenInMatch(match) {
+      const set = new Set();
+      for (const c of match.draft.bans.BLUE) set.add(c);
+      for (const c of match.draft.bans.RED) set.add(c);
+      for (const c of match.draft.picks.BLUE) set.add(c);
+      for (const c of match.draft.picks.RED) set.add(c);
+      return set;
+    }
+
+    function draftStep(match) {
+      return DRAFT_STEPS[match.draft.stepIndex] || null;
+    }
+
+    function canSelectChamp(match, champId) {
+      const step = draftStep(match);
+      if (!step) return { ok:false, reason:'드래프트가 완료되었습니다.' };
+      const taken = getAlreadyTakenInMatch(match);
+      if (taken.has(champId)) return { ok:false, reason:'이미 밴/픽된 챔피언입니다.' };
+
+      if (step.type === 'pick') {
+        const teamName = sideToTeamName(match, step.side);
+        const used = getUsedChampsByTeamName(teamName, match.id);
+        if (used.has(champId)) return { ok:false, reason:`피어리스 룰: ${teamName} 팀은 이전 경기에서 사용한 챔피언을 재사용할 수 없습니다.` };
+      }
+      return { ok:true };
+    }
+
+    function applyDraftSelection(match, champId) {
+      const step = draftStep(match);
+      if (!step) return;
+      const allow = canSelectChamp(match, champId);
+      if (!allow.ok) {
+        toast(allow.reason);
+        return;
+      }
+
+      const teamName = sideToTeamName(match, step.side);
+      match.draft.actions.push({
+        type: step.type,
+        side: step.side,
+        teamName,
+        champId,
+        at: nowISO(),
+      });
+
+      if (step.type === 'ban') match.draft.bans[step.side].push(champId);
+      if (step.type === 'pick') match.draft.picks[step.side].push(champId);
+
+      match.draft.stepIndex = Math.min(match.draft.stepIndex + 1, DRAFT_STEPS.length);
+      saveAppState();
+      render();
+    }
+
+    function undoDraft(match) {
+      const last = match.draft.actions.pop();
+      if (!last) return;
+      const arr = last.type === 'ban' ? match.draft.bans[last.side] : match.draft.picks[last.side];
+      // remove last occurrence
+      const idx = arr.lastIndexOf(last.champId);
+      if (idx >= 0) arr.splice(idx, 1);
+      match.draft.stepIndex = Math.max(0, match.draft.stepIndex - 1);
+      match.status = 'drafting';
+      saveAppState();
+      render();
+    }
+
+    function resetDraft(match) {
+      match.draft = { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } };
+      match.status = 'drafting';
+      saveAppState();
+      render();
+    }
+
+    function finalizeDraft(match) {
+      if (match.draft.stepIndex < DRAFT_STEPS.length) {
+        toast('아직 드래프트가 끝나지 않았습니다.');
+        return;
+      }
+      match.status = 'draftComplete';
+      // ensure ratings exist for players
+      const allPlayers = [...match.blue.players, ...match.red.players].filter(Boolean);
+      match.ratings = match.ratings || {};
+      for (const p of allPlayers) {
+        if (!match.ratings[p]) {
+          match.ratings[p] = { k:0,d:0,a:0,cs:0,vision:0, rating: 7, comment:'' };
+        } else {
+          // migrate old fields -> rating if needed
+          const r = Number(match.ratings[p].rating);
+          if (!Number.isFinite(r) || r <= 0) {
+            match.ratings[p].rating = computeScores(match.ratings[p]).rating;
+          }
+        }
+      }
+      saveAppState();
+      toast('드래프트 저장 완료! 경기 평점 입력으로 이동하세요.');
+      state.view = 'report';
+      saveAppState();
+      render();
+    }
+
+    function completeMatch(match) {
+      // compute potm
+      const allPlayers = [...match.blue.players, ...match.red.players].filter(Boolean);
+      let best = null;
+      for (const p of allPlayers) {
+        const e = match.ratings?.[p] || {};
+        const sc = computeScores(e);
+        if (!best) best = { player: p, ...sc };
+        else {
+          if (sc.total > best.total) best = { player: p, ...sc };
+          else if (sc.total === best.total && sc.objective > best.objective) best = { player: p, ...sc };
+        }
+      }
+      match.potm = best?.player || null;
+
+      if (!match.result?.winnerSide) {
+        toast('승리 팀을 선택해주세요.');
+        return;
+      }
+
+      match.status = 'completed';
+      saveAppState();
+      toast(`경기 저장 완료! POTM: ${match.potm || '-'}`);
+      state.view = 'stats';
+      saveAppState();
+      render();
+    }
+
+    /**********************
+     * Modal
+     **********************/
+    function openModal({ title, bodyHtml, footerHtml }) {
+      const root = document.getElementById('modalRoot');
+      document.getElementById('modalTitle').textContent = title || 'Modal';
+      document.getElementById('modalBody').innerHTML = bodyHtml || '';
+      document.getElementById('modalFooter').innerHTML = footerHtml || '';
+      root.classList.remove('hidden');
+    }
+    function closeModal() {
+      document.getElementById('modalRoot').classList.add('hidden');
+    }
+
+    /**********************
+     * Rendering
+     **********************/
+    function badge(text, cls='') {
+      return `<span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold border ${cls}">${escapeHtml(text)}</span>`;
+    }
+
+    function syncPlayerDatalist() {
+      const dl = document.getElementById('playerDatalist');
+      if (!dl) return;
+      const players = (state.players || []).slice().sort((a,b)=>a.localeCompare(b,'ko'));
+      dl.innerHTML = players.map(p => `<option value="${escapeHtml(p)}"></option>`).join('');
+    }
+
+    function renderMatchHeader(match) {
+      const step = draftStep(match);
+      const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
+      const stepText = isDone ? '드래프트 완료' : `${match.draft.stepIndex+1}/${DRAFT_STEPS.length} · ${step.label} (${step.type.toUpperCase()})`;
+      const blueUsed = getUsedChampsByTeamName(match.blue.name, match.id);
+      const redUsed = getUsedChampsByTeamName(match.red.name, match.id);
+
+      return `
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                ${badge('현재 매치', 'border-slate-700 text-slate-200')}
+                ${match.status === 'drafting' ? badge('DRAFTING', 'border-sky-700 text-sky-200 bg-sky-950/30') : ''}
+                ${match.status === 'draftComplete' ? badge('DRAFT COMPLETE', 'border-emerald-700 text-emerald-200 bg-emerald-950/30') : ''}
+                ${match.status === 'completed' ? badge('COMPLETED', 'border-amber-700 text-amber-200 bg-amber-950/30') : ''}
+                <span class="text-xs text-slate-500">${escapeHtml(fmtDate(match.createdAt))}</span>
+              </div>
+              <div class="mt-2 flex flex-col gap-1">
+                <div class="text-sm text-slate-300">진행: <span class="font-extrabold text-slate-100">${escapeHtml(stepText)}</span></div>
+                <div class="text-xs text-slate-500">피어리스 USED: <span class="text-sky-300 font-bold">${escapeHtml(match.blue.name)}</span> ${blueUsed.size}개 · <span class="text-rose-300 font-bold">${escapeHtml(match.red.name)}</span> ${redUsed.size}개</div>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 매치</button>
+              <button data-action="openSetup" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">팀/선수 설정</button>
+              <button data-action="export" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Export</button>
+              <button data-action="import" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Import</button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderTeamPanel(match, side) {
+      const isBlue = side === 'BLUE';
+      const team = isBlue ? match.blue : match.red;
+      const otherSide = isBlue ? 'RED' : 'BLUE';
+      const bans = match.draft.bans[side] || [];
+      const picks = match.draft.picks[side] || [];
+      const color = isBlue ? 'sky' : 'rose';
+      const titleBg = isBlue ? 'bg-sky-950/40 border-sky-900' : 'bg-rose-950/40 border-rose-900';
+
+      const usedSet = getUsedChampsByTeamName(team.name, match.id);
+
+      const slot = (i, champId) => {
+        if (!champId) return `
+          <div class="flex items-center gap-2 p-2 rounded-xl border border-slate-800 bg-slate-950/20">
+            <div class="w-10 h-10 rounded-xl border border-slate-800 bg-slate-900 flex items-center justify-center text-slate-500 font-black">?</div>
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-slate-200">빈 슬롯</div>
+              <div class="text-xs text-slate-500">선택 대기</div>
+            </div>
+          </div>`;
+
+        const champName = (champs.find(c=>c.id===champId)?.name) || champId;
+        const usedTag = usedSet.has(champId) ? `<span class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">USED</span>` : '';
+        return `
+          <div class="flex items-center gap-2 p-2 rounded-xl border border-slate-800 bg-slate-950/20">
+            ${champAvatar(champId, 40)}
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-semibold text-slate-100 truncate">${escapeHtml(champName)} ${usedTag}</div>
+              <div class="text-xs text-slate-500">${isBlue ? 'BLUE' : 'RED'} ${i+1}</div>
+            </div>
+            <button data-action="copyChamp" data-champ="${escapeHtml(champId)}" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs">복사</button>
+          </div>`;
+      };
+
+      return `
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between ${titleBg}">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-${color}-400"></div>
+              <div class="font-extrabold">${escapeHtml(team.name)}</div>
+              <div class="text-xs text-slate-400">(${isBlue ? 'BLUE side' : 'RED side'})</div>
+            </div>
+            <div class="text-xs text-slate-400">선수: ${escapeHtml((team.players || []).filter(Boolean).join(', ') || '미설정')}</div>
+          </div>
+
+          <div class="p-4 grid grid-cols-1 gap-4">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="font-bold">밴 (${bans.length}/5)</h4>
+                <div class="text-xs text-slate-500">상대팀: ${escapeHtml(sideToTeamName(match, otherSide))}</div>
+              </div>
+              <div class="grid grid-cols-5 gap-2">
+                ${Array.from({length:5}).map((_,i)=>{
+                  const cid = bans[i];
+                  if (!cid) return `
+                    <div class="p-2 rounded-lg border border-slate-800 bg-slate-950/20 text-slate-600 text-[10px] flex items-center justify-center">
+                      빈 밴
+                    </div>
+                  `;
+                  const name = (champs.find(c=>c.id===cid)?.name) || cid;
+                  return `
+                    <div class="p-1.5 rounded-lg border border-slate-800 bg-slate-950/20 flex flex-col items-center text-center min-w-0">
+                      ${champAvatar(cid, 28)}
+                      <div class="mt-1 w-full text-[10px] text-slate-200 font-semibold truncate">${escapeHtml(name)}</div>
+                      <div class="text-[9px] text-slate-500">BAN</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="font-bold">픽 (${picks.length}/5)</h4>
+                <div class="text-xs text-slate-500">피어리스: 이전 경기에서 사용한 챔피언은 선택 불가</div>
+              </div>
+              <div class="grid grid-cols-1 gap-2">
+                ${Array.from({length:5}).map((_,i)=>slot(i, picks[i])).join('')}
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderChampionPicker(match) {
+      const step = draftStep(match);
+      const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
+      const taken = getAlreadyTakenInMatch(match);
+      const teamName = step ? sideToTeamName(match, step.side) : null;
+      const used = (step && step.type === 'pick') ? getUsedChampsByTeamName(teamName, match.id) : new Set();
+
+      const q = ui.champQuery;
+      let list = champs;
+      if (q) list = list.filter(c => champMatches(c, q));
+
+      const isSelectable = (champId) => {
+        if (!step) return false;
+        if (taken.has(champId)) return false;
+        if (step.type === 'pick' && used.has(champId)) return false;
+        return true;
+      };
+
+      if (ui.showOnlyAvailable && step) {
+        list = list.filter(c => isSelectable(c.id));
+      }
+
+      const header = `
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="text-lg font-extrabold">챔피언 선택</div>
+                ${step ? badge(`${step.label}`, step.side === 'BLUE' ? 'border-sky-700 text-sky-200 bg-sky-950/30' : 'border-rose-700 text-rose-200 bg-rose-950/30') : badge('완료', 'border-slate-700 text-slate-200')}
+                ${step ? badge(step.type.toUpperCase(), 'border-slate-700 text-slate-200') : ''}
+                ${step && step.type==='pick' ? badge(`피어리스 적용: ${teamName}`, 'border-amber-700 text-amber-200 bg-amber-950/30') : ''}
+              </div>
+              <p class="text-xs text-slate-400 mt-1">클릭하면 현재 단계에 바로 기록됩니다. (이미 밴/픽된 챔피언은 비활성화)</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button data-action="undoDraft" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">되돌리기</button>
+              <button data-action="resetDraft" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">전체 초기화</button>
+              <button data-action="finishDraft" class="px-3 py-2 rounded-xl ${isDone ? 'bg-emerald-700 hover:bg-emerald-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${isDone ? '' : 'disabled'}>드래프트 확정</button>
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="md:col-span-2">
+              <input data-input="champQuery" value="${escapeHtml(ui.champQuery)}" placeholder="챔피언 검색 (이름/ID)" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-600" />
+            </div>
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm">
+              <input type="checkbox" data-input="onlyAvailable" ${ui.showOnlyAvailable ? 'checked' : ''} />
+              <span>선택 가능만 보기</span>
+            </label>
+          </div>
+
+          <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> 선택 가능</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-600"></span> 이미 밴/픽됨</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> USED(피어리스) - 현재 픽 팀 기준</span>
+          </div>
+        </section>
+      `;
+
+      const grid = `
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between">
+            <div class="text-sm text-slate-400">표시: <span data-el="champCount" class="text-slate-100 font-bold">${list.length}</span> / ${champs.length} 챔피언</div>
+            <div class="text-xs text-slate-500">Data Dragon: ${escapeHtml(champVersion)} (네트워크 실패 시 일부 목록으로 동작)</div>
+          </div>
+
+          <div data-el="champList" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[520px] overflow-auto pr-1 scrollbar">
+            ${list.map(c => {
+              const takenFlag = taken.has(c.id);
+              const usedFlag = step && step.type==='pick' && used.has(c.id);
+              const selectable = step && !takenFlag && !(step.type==='pick' && usedFlag);
+              const ring = selectable ? 'ring-1 ring-emerald-500/40 hover:ring-emerald-400/60' : 'ring-1 ring-slate-700/50';
+              const opacity = selectable ? '' : 'opacity-50';
+              const cursor = selectable ? 'cursor-pointer' : 'cursor-not-allowed';
+              const mark = takenFlag ? `<div class="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">TAKEN</div>` : '';
+              const usedMark = usedFlag ? `<div class="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">USED</div>` : '';
+
+              return `
+                <div class="relative flex items-center gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 ${ring} ${opacity} ${cursor}" data-action="pickChamp" data-champ="${escapeHtml(c.id)}" ${selectable ? '' : 'aria-disabled="true"'}>
+                  ${champAvatar(c.id, 34)}
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold truncate">${escapeHtml(c.name)}</div>
+                    <div class="text-[11px] text-slate-500 truncate">${escapeHtml(c.id)}</div>
+                  </div>
+                  ${mark}${usedMark}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="mt-4 p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <div class="text-sm font-bold">직접 입력 (목록에 없는 챔피언용)</div>
+            <p class="text-xs text-slate-500 mt-1">아이콘은 표시되지 않을 수 있습니다(입력값을 ID로 저장). 오타 주의!</p>
+            <div class="mt-2 flex flex-col md:flex-row gap-2">
+              <input data-input="manualChamp" placeholder="예: Ahri / LeeSin / CustomName" class="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-600" />
+              <button data-action="pickManual" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">현재 단계에 기록</button>
+            </div>
+          </div>
+        </section>
+      `;
+
+      return `<div class="grid grid-cols-1 gap-4">${header}${grid}</div>`;
+    }
+
+    function renderHomeView() {
+      const current = getCurrentMatch();
+      const completedCount = state.matches?.filter(m => m.status === 'completed').length || 0;
+      const totalCount = state.matches?.length || 0;
+      const last = (state.matches || [])[0] || null;
+
+      const primary = current
+        ? `<button data-action="homeContinue" class="px-4 py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 font-black">현재 매치 이어하기</button>`
+        : `<button data-action="homeStart" class="px-4 py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 font-black">드래프트 시작</button>`;
+
+      const lastCard = last ? `
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-500">최근 매치</div>
+              <div class="mt-1 font-black text-lg">${escapeHtml(last.blue?.name || 'BLUE')} <span class="text-slate-500">vs</span> ${escapeHtml(last.red?.name || 'RED')}</div>
+              <div class="mt-1 text-sm text-slate-300">상태: <span class="font-extrabold text-slate-100">${escapeHtml((last.status || '').toUpperCase() || '-')}</span> · 생성: <span class="text-slate-400">${escapeHtml(fmtDate(last.createdAt))}</span></div>
+            </div>
+            <button data-action="openMatch" data-id="${escapeHtml(last.id)}" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">열기</button>
+          </div>
+        </div>
+      ` : `
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500">최근 매치가 없습니다. "드래프트 시작"으로 첫 경기를 만들어보세요.</div>
+      `;
+
+      return `
+        <div class="grid grid-cols-1 gap-4">
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div class="text-2xl font-black tracking-tight">홈</div>
+                <div class="mt-2 text-sm text-slate-400">피어리스 드래프트 → 경기 입력 → POTM/랭킹까지 한 번에 관리합니다.</div>
+                <div class="mt-2 text-xs text-slate-500">현재 데이터: 전체 ${totalCount}경기 · 완료 ${completedCount}경기</div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                ${primary}
+                <button data-action="homeNewMatch" class="px-4 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-600 font-black">새 매치 만들기</button>
+                <button data-action="homeSettings" class="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold">설정(선수/팀)</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="font-extrabold">빠른 안내</div>
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div class="text-sm font-black">1) 팀/선수 설정</div>
+                <div class="mt-1 text-xs text-slate-500">설정에서 선수 목록과 기본 팀 프리셋을 등록</div>
+              </div>
+              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div class="text-sm font-black">2) 밴픽 진행</div>
+                <div class="mt-1 text-xs text-slate-500">앱이 단계(밴/픽)를 자동 안내 · 피어리스 USED 표시</div>
+              </div>
+              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div class="text-sm font-black">3) 경기 입력 & POTM</div>
+                <div class="mt-1 text-xs text-slate-500">KDA/CS/시야 + 평점(1~10) 입력 → POTM 자동 선정</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex items-center justify-between">
+              <div class="font-extrabold">최근/현재 매치</div>
+              <div class="flex gap-2">
+                <button data-action="homeHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
+                <button data-action="homeStats" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">랭킹</button>
+              </div>
+            </div>
+            <div class="mt-3">${lastCard}</div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderDraftView() {
+      const match = ensureCurrentMatch();
+      const top = renderMatchHeader(match);
+
+      const layout = `
+        <div class="grid grid-cols-1 gap-4">
+          ${top}
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-1 flex flex-col gap-4">
+              ${renderTeamPanel(match, 'BLUE')}
+              ${renderTeamPanel(match, 'RED')}
+            </div>
+            <div class="lg:col-span-2">
+              ${renderChampionPicker(match)}
+            </div>
+          </div>
+        </div>
+      `;
+      return layout;
+    }
+
+    function renderReportView() {
+      const match = ensureCurrentMatch();
+      const allPlayers = [...(match.blue.players||[]), ...(match.red.players||[])].filter(Boolean);
+      const stepDone = match.draft.stepIndex >= DRAFT_STEPS.length;
+
+      const winnerBadge = (side) => {
+        const active = match.result.winnerSide === side;
+        const color = side === 'BLUE' ? 'sky' : 'rose';
+        return `
+          <button data-action="setWinner" data-side="${side}" class="px-3 py-2 rounded-xl border ${active ? `bg-${color}-700/30 border-${color}-500 text-${color}-100` : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-900'} font-bold text-sm">
+            ${side === 'BLUE' ? escapeHtml(match.blue.name) : escapeHtml(match.red.name)} 승
+          </button>
+        `;
+      };
+
+      // compute current POTM preview
+      let potmPreview = null;
+      let potmScore = null;
+      for (const p of allPlayers) {
+        const sc = computeScores(match.ratings?.[p] || {});
+        if (!potmPreview || sc.total > potmScore) { potmPreview = p; potmScore = sc.total; }
+      }
+
+      const header = `
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="text-lg font-extrabold">경기 평점 & POTM</div>
+                ${match.status === 'completed' ? badge('COMPLETED', 'border-amber-700 text-amber-200 bg-amber-950/30') : badge(match.status.toUpperCase(), 'border-slate-700 text-slate-200')}
+              </div>
+              <div class="mt-2 text-sm text-slate-300">매치: <span class="font-extrabold text-slate-100">${escapeHtml(match.blue.name)}</span> vs <span class="font-extrabold text-slate-100">${escapeHtml(match.red.name)}</span></div>
+              <div class="mt-1 text-xs text-slate-500">POTM 미리보기(현재 입력 기준): <span class="font-extrabold text-amber-200">${escapeHtml(potmPreview || '-')}</span> (${potmScore ?? 0})</div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button data-action="goDraft" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">밴픽으로</button>
+              <button data-action="saveReport" class="px-3 py-2 rounded-xl ${stepDone ? 'bg-emerald-700 hover:bg-emerald-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${stepDone ? '' : 'disabled'}>경기 저장(완료)</button>
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            ${winnerBadge('BLUE')}
+            ${winnerBadge('RED')}
+            <div class="flex-1"></div>
+            <div class="text-xs text-slate-500 self-center">드래프트 확정 후 입력 권장</div>
+          </div>
+
+          <div class="mt-3">
+            <label class="text-xs text-slate-400">메모</label>
+            <textarea data-input="matchNotes" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-600" rows="2" placeholder="한 줄 요약 / 특이사항">${escapeHtml(match.result.notes || '')}</textarea>
+          </div>
+
+          <div class="mt-4 p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <div class="text-sm font-bold">점수 산정(직관형)</div>
+            <ul class="text-xs text-slate-400 mt-1 list-disc pl-5">
+              <li>Objective(70%): (K×3 + A×2 - D×2) + CS×0.05 + Vision×0.2</li>
+              <li>Rating(30%): 평점(1~10) × 10</li>
+              <li>Total = Objective×0.7 + RatingScore×0.3</li>
+            </ul>
+          </div>
+        </section>
+      `;
+
+      const playerCard = (player, side) => {
+        const eRaw = match.ratings?.[player] || {};
+        const sc0 = computeScores(eRaw);
+        const e = {
+          k: 0, d: 0, a: 0, cs: 0, vision: 0,
+          rating: sc0.rating,
+          comment: '',
+          ...eRaw,
+        };
+
+        const sc = computeScores(e);
+        const color = side === 'BLUE' ? 'sky' : 'rose';
+        const teamName = side === 'BLUE' ? match.blue.name : match.red.name;
+
+        const isCandidate = match.potm === player;
+        const potmBtnCls = isCandidate
+          ? 'bg-amber-500/35 border-amber-400/70 text-amber-50 ring-2 ring-amber-400/30'
+          : 'bg-amber-600/25 border-amber-500/40 hover:bg-amber-600/35 text-amber-100';
+
+        const input = (key, label, min=0, max=999, step=1) => `
+          <label class="text-xs text-slate-400">
+            ${escapeHtml(label)}
+            <input type="number" class="no-spin w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-${color}-600" min="${min}" max="${max}" step="${step}" value="${escapeHtml(e[key] ?? 0)}" data-action="rateInput" data-player="${escapeHtml(player)}" data-key="${escapeHtml(key)}" />
+          </label>
+        `;
+
+        return `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden ${isCandidate ? 'ring-2 ring-amber-400/30' : ''}">
+            <div class="px-4 py-3 border-b border-slate-800 bg-${color}-950/25 flex items-center justify-between">
+              <div class="min-w-0">
+                <div class="font-extrabold truncate">${escapeHtml(player)} <span class="text-xs text-slate-400 font-semibold">(${escapeHtml(teamName)})</span></div>
+                <div class="text-xs text-slate-500">Objective: <span class="text-slate-200 font-bold">${sc.objective}</span> · Rating: <span class="text-slate-200 font-bold">${sc.rating}/10</span> · Total: <span class="text-amber-200 font-black">${sc.total}</span></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button data-action="setPOTM" data-player="${escapeHtml(player)}" aria-pressed="${isCandidate ? 'true' : 'false'}" class="px-2.5 py-1.5 rounded-xl border text-xs font-black ${potmBtnCls}">${isCandidate ? 'POTM 후보 ✓' : 'POTM 후보'}</button>
+              </div>
+            </div>
+
+            <div class="p-4 grid grid-cols-2 md:grid-cols-6 gap-3">
+              ${input('k','K',0,99,1)}
+              ${input('d','D',0,99,1)}
+              ${input('a','A',0,99,1)}
+              ${input('cs','CS',0,999,1)}
+              ${input('vision','Vision',0,999,1)}
+              <div class="md:col-span-1 flex items-end">
+                <button data-action="fillDemo" data-player="${escapeHtml(player)}" class="w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold">랜덤 예시</button>
+              </div>
+
+              ${input('rating','평점(1~10)',1,10,1)}
+              <label class="text-xs text-slate-400 md:col-span-5">
+                한 줄 평
+                <input class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-${color}-600" value="${escapeHtml(e.comment || '')}" data-action="rateInput" data-player="${escapeHtml(player)}" data-key="comment" placeholder="자유 피드백" />
+              </label>
+            </div>
+          </div>
+        `;
+      };
+
+      const blueCards = (match.blue.players||[]).filter(Boolean).map(p=>playerCard(p,'BLUE')).join('');
+      const redCards = (match.red.players||[]).filter(Boolean).map(p=>playerCard(p,'RED')).join('');
+
+      // Draft global order map: champId -> overall action index (1~20)
+      const seqByChamp = {};
+      (match.draft?.actions || []).forEach((a, i) => {
+        if (a?.champId) seqByChamp[a.champId] = i + 1;
+      });
+
+      const miniSlots = (arr, count = 5, size = 28) => {
+        const list = Array.isArray(arr) ? arr : [];
+        return `
+          <div class="grid grid-cols-5 gap-1.5">
+            ${Array.from({ length: count }).map((_, i) => {
+              const cid = list[i];
+              if (!cid) {
+                return `<div class="w-[${size}px] h-[${size}px] rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-center text-[10px] text-slate-600 font-black">-</div>`;
+              }
+              const name = champs.find(x => x.id === cid)?.name || cid;
+              const seq = seqByChamp[cid];
+              const seqBadge = seq ? `<div class="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-slate-950 border border-slate-700 text-[10px] font-black text-slate-100 flex items-center justify-center">${seq}</div>` : '';
+              return `
+                <div class="relative inline-block shrink-0" title="#${seq || ''} ${escapeHtml(name)}">
+                  ${champAvatar(cid, size)}
+                  ${seqBadge}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      };
+
+      const draftSummary = `
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between">
+            <div class="font-extrabold">드래프트 요약</div>
+            <div class="text-xs text-slate-500">(아이콘 표시 · 읽기 전용)</div>
+          </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div class="font-bold text-sky-200">${escapeHtml(match.blue.name)} (BLUE)</div>
+
+              <div class="mt-2">
+                <div class="text-[11px] text-slate-400 font-bold">BAN</div>
+                <div class="mt-1">${miniSlots(match.draft.bans.BLUE, 5, 28)}</div>
+              </div>
+
+              <div class="mt-2">
+                <div class="text-[11px] text-slate-400 font-bold">PICK</div>
+                <div class="mt-1">${miniSlots(match.draft.picks.BLUE, 5, 28)}</div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div class="font-bold text-rose-200">${escapeHtml(match.red.name)} (RED)</div>
+
+              <div class="mt-2">
+                <div class="text-[11px] text-slate-400 font-bold">BAN</div>
+                <div class="mt-1">${miniSlots(match.draft.bans.RED, 5, 28)}</div>
+              </div>
+
+              <div class="mt-2">
+                <div class="text-[11px] text-slate-400 font-bold">PICK</div>
+                <div class="mt-1">${miniSlots(match.draft.picks.RED, 5, 28)}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+
+      return `
+        <div class="grid grid-cols-1 gap-4">
+          ${renderMatchHeader(match)}
+          ${header}
+          ${draftSummary}
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-sky-400"></div>
+                <div class="font-black">BLUE 팀 선수 입력</div>
+              </div>
+              ${blueCards || '<div class="text-slate-500">BLUE 선수 미설정</div>'}
+            </div>
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-rose-400"></div>
+                <div class="font-black">RED 팀 선수 입력</div>
+              </div>
+              ${redCards || '<div class="text-slate-500">RED 선수 미설정</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function computePlayerAggregates() {
+      const agg = new Map(); // player -> {sumTotal,sumObj,sumSub,matches,potm}
+      for (const m of state.matches) {
+        if (m.status !== 'completed') continue;
+        const players = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
+        for (const p of players) {
+          const e = m.ratings?.[p];
+          if (!e) continue;
+          const sc = computeScores(e);
+          if (!agg.has(p)) agg.set(p, { player:p, matches:0, potm:0, sumTotal:0, sumObj:0, sumSub:0 });
+          const a = agg.get(p);
+          a.matches += 1;
+          a.sumTotal += sc.total;
+          a.sumObj += sc.objective;
+          a.sumSub += sc.subjective;
+        }
+        if (m.potm) {
+          if (!agg.has(m.potm)) agg.set(m.potm, { player:m.potm, matches:0, potm:0, sumTotal:0, sumObj:0, sumSub:0 });
+          agg.get(m.potm).potm += 1;
+        }
+      }
+      const list = [...agg.values()].map(x => ({
+        ...x,
+        avgTotal: x.matches ? Math.round((x.sumTotal / x.matches) * 100) / 100 : 0,
+        avgObj: x.matches ? Math.round((x.sumObj / x.matches) * 100) / 100 : 0,
+        avgSub: x.matches ? Math.round((x.sumSub / x.matches) * 100) / 100 : 0,
+      }));
+      list.sort((a,b) => b.avgTotal - a.avgTotal);
+      return list;
+    }
+
+    function renderStatsView() {
+      const ranking = computePlayerAggregates();
+      const completedCount = state.matches.filter(m => m.status === 'completed').length;
+
+      const first = ranking[0]?.player;
+      const last = ranking[ranking.length-1]?.player;
+
+      const row = (r, idx) => {
+        const isFirst = r.player === first;
+        const isLast = r.player === last;
+        const icon = isFirst ? '👑' : (isLast ? '💀' : '');
+        const hi = isFirst ? 'bg-amber-600/10 border-amber-500/30' : (isLast ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-950/30 border-slate-800');
+        return `
+          <tr class="border-b border-slate-800">
+            <td class="px-3 py-2 text-sm font-bold">${idx+1}</td>
+            <td class="px-3 py-2">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">${icon}</span>
+                <div class="font-extrabold">${escapeHtml(r.player)}</div>
+              </div>
+            </td>
+            <td class="px-3 py-2 text-sm text-slate-300">${r.matches}</td>
+            <td class="px-3 py-2 text-sm font-black text-amber-200">${r.avgTotal}</td>
+            <td class="px-3 py-2 text-sm text-slate-300">${r.avgObj}</td>
+            <td class="px-3 py-2 text-sm text-slate-300">${r.avgSub}</td>
+            <td class="px-3 py-2 text-sm text-slate-300">${r.potm}</td>
+          </tr>
+        `;
+      };
+
+      return `
+        <div class="grid grid-cols-1 gap-4">
+          ${renderMatchHeader(ensureCurrentMatch())}
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div class="text-lg font-extrabold">MVP 랭킹 (평균 Total Score)</div>
+                <div class="text-xs text-slate-500 mt-1">완료된 경기: ${completedCount}개 · 1위 👑 / 꼴등 💀</div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button data-action="goReport" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">현재 매치 평점</button>
+                <button data-action="goHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
+              </div>
+            </div>
+
+            <div class="mt-4 overflow-x-auto scrollbar">
+              <table class="w-full min-w-[720px] border border-slate-800 rounded-xl overflow-hidden">
+                <thead class="bg-slate-950">
+                  <tr class="text-left text-xs text-slate-400">
+                    <th class="px-3 py-2">#</th>
+                    <th class="px-3 py-2">선수</th>
+                    <th class="px-3 py-2">경기수</th>
+                    <th class="px-3 py-2">Avg Total</th>
+                    <th class="px-3 py-2">Avg Obj</th>
+                    <th class="px-3 py-2">Avg Sub</th>
+                    <th class="px-3 py-2">POTM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${ranking.length ? ranking.map(row).join('') : `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">아직 완료된 경기가 없습니다.</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="font-extrabold">팁</div>
+            <ul class="mt-2 text-sm text-slate-400 list-disc pl-5">
+              <li>피어리스 USED는 "팀 이름" 기준으로 누적됩니다. (팀 이름을 바꾸면 별개 팀으로 인식)</li>
+              <li>Export/Import로 다른 PC로 옮기거나 백업할 수 있습니다.</li>
+            </ul>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderHistoryView() {
+      const cards = state.matches.map(m => {
+        const winner = m.result?.winnerSide ? (m.result.winnerSide === 'BLUE' ? m.blue.name : m.red.name) : '-';
+        const potm = m.potm || '-';
+        const statusColor = m.status === 'completed' ? 'border-amber-700 text-amber-200 bg-amber-950/30'
+                          : m.status === 'draftComplete' ? 'border-emerald-700 text-emerald-200 bg-emerald-950/30'
+                          : 'border-sky-700 text-sky-200 bg-sky-950/30';
+        return `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  ${badge(m.status.toUpperCase(), statusColor)}
+                  <span class="text-xs text-slate-500">${escapeHtml(fmtDate(m.createdAt))}</span>
+                </div>
+                <div class="mt-2 font-black text-lg truncate">${escapeHtml(m.blue.name)} <span class="text-slate-500">vs</span> ${escapeHtml(m.red.name)}</div>
+                <div class="mt-1 text-sm text-slate-300">승리: <span class="font-extrabold text-slate-100">${escapeHtml(winner)}</span> · POTM: <span class="font-extrabold text-amber-200">${escapeHtml(potm)}</span></div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button data-action="openMatch" data-id="${escapeHtml(m.id)}" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 text-sm font-bold">열기</button>
+                <button data-action="detailMatch" data-id="${escapeHtml(m.id)}" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">상세</button>
+                <button data-action="deleteMatch" data-id="${escapeHtml(m.id)}" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-sm font-bold">삭제</button>
+              </div>
+            </div>
+
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="text-xs text-sky-200 font-bold">${escapeHtml(m.blue.name)}</div>
+                <div class="text-xs text-slate-400 mt-1">PICK: ${(m.draft?.picks?.BLUE||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="text-xs text-rose-200 font-bold">${escapeHtml(m.red.name)}</div>
+                <div class="text-xs text-slate-400 mt-1">PICK: ${(m.draft?.picks?.RED||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="grid grid-cols-1 gap-4">
+          ${renderMatchHeader(ensureCurrentMatch())}
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-lg font-extrabold">경기 히스토리</div>
+                <div class="text-xs text-slate-500 mt-1">클릭해서 과거 매치를 불러오거나 상세를 확인하세요.</div>
+              </div>
+              <div class="flex gap-2">
+                <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 매치</button>
+              </div>
+            </div>
+          </section>
+          ${cards || `<div class="text-center text-slate-500 py-10">경기 기록이 없습니다.</div>`}
+        </div>
+      `;
+    }
+
+    function renderSettingsView() {
+      const players = (state.players || []).slice().sort((a,b)=>a.localeCompare(b,'ko'));
+      const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+
+      const playerChips = players.map(p => `
+        <div class="flex items-center gap-2 px-2 py-1 rounded-xl bg-slate-950 border border-slate-800">
+          <span class="text-sm font-semibold">${escapeHtml(p)}</span>
+          <button data-action="removePlayer" data-player="${escapeHtml(p)}" class="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs">삭제</button>
+        </div>
+      `).join('');
+
+      const pickOptions = (selected) => {
+        const opts = [''].concat(players).map(p => `<option value="${escapeHtml(p)}" ${p===selected?'selected':''}>${escapeHtml(p||'-- 선택 --')}</option>`).join('');
+        return opts;
+      };
+
+      const teamSelect = (side, idx, selected) => `
+        <label class="text-xs text-slate-400">
+          ${side} ${idx+1}
+          <select data-action="presetPlayer" data-side="${side}" data-idx="${idx}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800">
+            ${pickOptions(selected)}
+          </select>
+        </label>
+      `;
+
+      return `
+        <div class="grid grid-cols-1 gap-4">
+          ${renderMatchHeader(ensureCurrentMatch())}
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="text-lg font-extrabold">설정</div>
+            <p class="text-xs text-slate-500 mt-1">선수 목록과 기본 팀 프리셋(새 매치 생성 시 자동 적용)을 관리합니다.</p>
+          </section>
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <div class="font-extrabold">선수 목록</div>
+                <div class="text-xs text-slate-500 mt-1">이름은 통계 집계 키로 사용됩니다. (동명이인 주의)</div>
+              </div>
+              <div class="flex gap-2">
+                <input data-input="newPlayer" placeholder="새 선수 이름" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800" />
+                <button data-action="addPlayer" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">추가</button>
+                <button data-action="resetAll" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">전체 초기화</button>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2">${playerChips || `<div class="text-slate-500">선수 없음</div>`}</div>
+          </section>
+
+          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="font-extrabold">기본 팀 프리셋</div>
+            <p class="text-xs text-slate-500 mt-1">"새 매치"를 누르면 아래 설정이 자동으로 들어갑니다.</p>
+
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="flex items-center justify-between">
+                  <div class="font-black text-sky-200">BLUE 팀</div>
+                </div>
+                <label class="text-xs text-slate-400 mt-2 block">
+                  팀 이름
+                  <input data-action="presetTeamName" data-side="BLUE" value="${escapeHtml(preset.blueTeamName||'BLUE')}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
+                </label>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                  ${Array.from({length:5}).map((_,i)=>teamSelect('BLUE', i, preset.bluePlayers?.[i]||'')).join('')}
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="flex items-center justify-between">
+                  <div class="font-black text-rose-200">RED 팀</div>
+                </div>
+                <label class="text-xs text-slate-400 mt-2 block">
+                  팀 이름
+                  <input data-action="presetTeamName" data-side="RED" value="${escapeHtml(preset.redTeamName||'RED')}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
+                </label>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                  ${Array.from({length:5}).map((_,i)=>teamSelect('RED', i, preset.redPlayers?.[i]||'')).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button data-action="applyPresetToCurrent" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">현재 매치에 적용</button>
+              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">프리셋으로 새 매치</button>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      const view = state.view || 'draft';
+      document.querySelectorAll('.navBtn').forEach(btn => {
+        const active = btn.getAttribute('data-nav') === view;
+        btn.classList.toggle('bg-sky-700', active);
+        btn.classList.toggle('hover:bg-sky-600', active);
+        btn.classList.toggle('bg-slate-800', !active);
+      });
+
+      if (view === 'home') app.innerHTML = renderHomeView();
+      else if (view === 'draft') app.innerHTML = renderDraftView();
+      else if (view === 'report') app.innerHTML = renderReportView();
+      else if (view === 'stats') app.innerHTML = renderStatsView();
+      else if (view === 'history') app.innerHTML = renderHistoryView();
+      else if (view === 'settings') app.innerHTML = renderSettingsView();
+      else app.innerHTML = renderHomeView();
+
+      // keep datalist in sync for all player-name inputs
+      syncPlayerDatalist();
+    }
+
+    // Preserve focus/selection/scroll when re-rendering (important for fast typing in search)
+    function renderPreserveFocus() {
+      const active = document.activeElement;
+      const activeKey = active?.getAttribute?.('data-input') || active?.getAttribute?.('data-action') || '';
+      const selection = (active && typeof active.selectionStart === 'number')
+        ? { start: active.selectionStart, end: active.selectionEnd }
+        : null;
+
+      const champList = document.querySelector('[data-el="champList"]');
+      const champListScrollTop = champList ? champList.scrollTop : 0;
+
+      render();
+
+      // restore champ list scroll
+      const champList2 = document.querySelector('[data-el="champList"]');
+      if (champList2) champList2.scrollTop = champListScrollTop;
+
+      // restore focus to the same logical input
+      let target = null;
+      if (activeKey) {
+        target = document.querySelector(`[data-input="${CSS.escape(activeKey)}"]`) || document.querySelector(`[data-action="${CSS.escape(activeKey)}"]`);
+      }
+      if (!target && active?.id) target = document.getElementById(active.id);
+      if (target && target.focus) {
+        target.focus({ preventScroll: true });
+        if (selection && typeof target.selectionStart === 'number') {
+          try { target.setSelectionRange(selection.start, selection.end); } catch {}
+        }
+      }
+    }
+
+    // Partial update to avoid full re-render during IME typing (fixes Korean final consonant jumping)
+    function updateChampionPickerPartial() {
+      if ((state.view || 'draft') !== 'draft') return;
+      const match = getCurrentMatch();
+      if (!match) return;
+
+      const step = draftStep(match);
+      const taken = getAlreadyTakenInMatch(match);
+      const teamName = step ? sideToTeamName(match, step.side) : null;
+      const used = (step && step.type === 'pick') ? getUsedChampsByTeamName(teamName, match.id) : new Set();
+
+      const q = ui.champQuery;
+      let list = champs;
+      if (q) list = list.filter(c => champMatches(c, q));
+
+      const isSelectable = (champId) => {
+        if (!step) return false;
+        if (taken.has(champId)) return false;
+        if (step.type === 'pick' && used.has(champId)) return false;
+        return true;
+      };
+      if (ui.showOnlyAvailable && step) list = list.filter(c => isSelectable(c.id));
+
+      // update count
+      const countEl = document.querySelector('[data-el="champCount"]');
+      if (countEl) countEl.textContent = String(list.length);
+
+      // update list only
+      const listEl = document.querySelector('[data-el="champList"]');
+      if (!listEl) return;
+      const scrollTop = listEl.scrollTop;
+
+      listEl.innerHTML = list.map(c => {
+        const takenFlag = taken.has(c.id);
+        const usedFlag = step && step.type==='pick' && used.has(c.id);
+        const selectable = step && !takenFlag && !(step.type==='pick' && usedFlag);
+        const ring = selectable ? 'ring-1 ring-emerald-500/40 hover:ring-emerald-400/60' : 'ring-1 ring-slate-700/50';
+        const opacity = selectable ? '' : 'opacity-50';
+        const cursor = selectable ? 'cursor-pointer' : 'cursor-not-allowed';
+        const mark = takenFlag ? `<div class="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">TAKEN</div>` : '';
+        const usedMark = usedFlag ? `<div class="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">USED</div>` : '';
+
+        return `
+          <div class="relative flex items-center gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 ${ring} ${opacity} ${cursor}" data-action="pickChamp" data-champ="${escapeHtml(c.id)}" ${selectable ? '' : 'aria-disabled="true"'}>
+            ${champAvatar(c.id, 34)}
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">${escapeHtml(c.name)}</div>
+              <div class="text-[11px] text-slate-500 truncate">${escapeHtml(c.id)}</div>
+            </div>
+            ${mark}${usedMark}
+          </div>
+        `;
+      }).join('');
+
+      listEl.scrollTop = scrollTop;
+    }
+
+    /**********************
+     * Setup Modal
+     **********************/
+    function openSetupModal(match) {
+      const players = (state.players || []).slice().sort((a,b)=>a.localeCompare(b,'ko'));
+      const opt = (selected) => [''].concat(players).map(p => `<option value="${escapeHtml(p)}" ${p===selected?'selected':''}>${escapeHtml(p||'-- 선택 --')}</option>`).join('');
+
+      const playerSel = (side, idx, selected) => `
+        <label class="text-xs text-slate-400">
+          ${side} ${idx+1}
+          <input
+            list="playerDatalist"
+            data-action="setupPlayer"
+            data-side="${side}"
+            data-idx="${idx}"
+            value="${escapeHtml(selected || '')}"
+            placeholder="선수 이름 입력"
+            class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-600"
+          />
+        </label>
+      `;
+
+      const body = `
+        <div class="grid grid-cols-1 gap-4">
+          <div class="text-sm text-slate-300">팀 이름과 선수(최대 5명)를 설정하세요. 피어리스 USED는 <span class="font-extrabold text-amber-200">팀 이름</span> 기준으로 누적됩니다.</div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div class="font-black text-sky-200">BLUE</div>
+              <label class="text-xs text-slate-400 mt-2 block">팀 이름
+                <input data-action="setupTeamName" data-side="BLUE" value="${escapeHtml(match.blue.name)}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
+              </label>
+              <div class="mt-3 grid grid-cols-2 gap-2">${Array.from({length:5}).map((_,i)=>playerSel('BLUE', i, match.blue.players?.[i]||'')).join('')}</div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div class="font-black text-rose-200">RED</div>
+              <label class="text-xs text-slate-400 mt-2 block">팀 이름
+                <input data-action="setupTeamName" data-side="RED" value="${escapeHtml(match.red.name)}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
+              </label>
+              <div class="mt-3 grid grid-cols-2 gap-2">${Array.from({length:5}).map((_,i)=>playerSel('RED', i, match.red.players?.[i]||'')).join('')}</div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <div class="font-bold">빠른 입력</div>
+            <p class="text-xs text-slate-500 mt-1">선수 목록에 없는 이름은 설정에서 먼저 추가하거나, 아래에 쉼표로 직접 입력 후 자동 등록할 수 있습니다.</p>
+            <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              <input data-input="quickBlue" placeholder="BLUE 선수 5명 (쉼표구분)" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700" />
+              <input data-input="quickRed" placeholder="RED 선수 5명 (쉼표구분)" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700" />
+            </div>
+            <div class="mt-2 flex justify-end">
+              <button data-action="quickApply" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">적용 + 선수목록에 추가</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const footer = `
+        <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">닫기</button>
+        <button data-action="setupSave" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">저장</button>
+      `;
+
+      openModal({ title: '팀/선수 설정', bodyHtml: body, footerHtml: footer });
+    }
+
+    /**********************
+     * Export / Import
+     **********************/
+    function openExportModal() {
+      const data = JSON.stringify(state, null, 2);
+      openModal({
+        title: 'Export (JSON)',
+        bodyHtml: `
+          <p class="text-sm text-slate-400">아래 JSON을 복사해서 백업하세요.</p>
+          <textarea class="w-full mt-3 h-[360px] px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs">${escapeHtml(data)}</textarea>
+        `,
+        footerHtml: `<button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">닫기</button>`
+      });
+    }
+
+    function openImportModal() {
+      openModal({
+        title: 'Import (JSON)',
+        bodyHtml: `
+          <p class="text-sm text-slate-400">Export한 JSON을 붙여넣고 Import를 누르세요. (현재 데이터는 덮어씁니다)</p>
+          <textarea id="importBox" class="w-full mt-3 h-[300px] px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs" placeholder="{ ... }"></textarea>
+        `,
+        footerHtml: `
+          <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
+          <button data-action="importDo" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">Import</button>
+        `
+      });
+    }
+
+    /**********************
+     * Events
+     **********************/
+    document.addEventListener('click', (e) => {
+      const nav = e.target.closest('[data-nav]');
+      if (nav) {
+        state.view = nav.getAttribute('data-nav');
+        saveAppState();
+        render();
+        return;
+      }
+
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      const match = getCurrentMatch();
+
+      if (action === 'modalClose') { closeModal(); return; }
+
+      if (action === 'newMatch') {
+        const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+        const m = createNewMatch(preset);
+        toast('새 매치를 생성했습니다.');
+        render();
+        return;
+      }
+
+      // Home shortcuts
+      if (action === 'homeStart') {
+        // Ensure current match exists then go to draft
+        ensureCurrentMatch();
+        state.view = 'draft';
+        saveAppState();
+        render();
+        return;
+      }
+      if (action === 'homeContinue') {
+        if (!state.currentMatchId) ensureCurrentMatch();
+        state.view = 'draft';
+        saveAppState();
+        render();
+        return;
+      }
+      if (action === 'homeNewMatch') {
+        const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+        createNewMatch(preset);
+        state.view = 'draft';
+        saveAppState();
+        toast('새 매치를 생성했습니다.');
+        render();
+        return;
+      }
+      if (action === 'homeSettings') {
+        state.view = 'settings';
+        saveAppState();
+        render();
+        return;
+      }
+      if (action === 'homeHistory') {
+        state.view = 'history';
+        saveAppState();
+        render();
+        return;
+      }
+      if (action === 'homeStats') {
+        state.view = 'stats';
+        saveAppState();
+        render();
+        return;
+      }
+
+      if (action === 'openSetup') {
+        openSetupModal(ensureCurrentMatch());
+        return;
+      }
+
+      if (action === 'setupTeamName') {
+        // live input handled in input handler
+        return;
+      }
+
+      if (action === 'setupPlayer') {
+        // handled in change handler
+        return;
+      }
+
+      if (action === 'quickApply') {
+        const root = document.getElementById('modalRoot');
+        const blueStr = root.querySelector('[data-input="quickBlue"]')?.value || '';
+        const redStr = root.querySelector('[data-input="quickRed"]')?.value || '';
+        const parse = (s) => s.split(',').map(x=>x.trim()).filter(Boolean).slice(0,5);
+        const blueList = parse(blueStr);
+        const redList = parse(redStr);
+
+        // add to players list
+        const set = new Set(state.players || []);
+        for (const p of [...blueList, ...redList]) set.add(p);
+        state.players = [...set];
+
+        // apply to modal temp fields
+        const m = ensureCurrentMatch();
+        m.blue.players = blueList;
+        m.red.players = redList;
+        m.ratings = createEmptyRatings([...blueList, ...redList]);
+        saveAppState();
+        toast('빠른 입력 적용 완료');
+        openSetupModal(m);
+        return;
+      }
+
+      if (action === 'setupSave') {
+        // just close; changes are applied live
+        closeModal();
+        toast('팀/선수 설정 저장 완료');
+        render();
+        return;
+      }
+
+      if (action === 'pickChamp') {
+        if (!match) return;
+        const champId = btn.getAttribute('data-champ');
+        applyDraftSelection(match, champId);
+        return;
+      }
+
+      if (action === 'pickManual') {
+        if (!match) return;
+        const input = document.querySelector('[data-input="manualChamp"]');
+        const champId = (input?.value || '').trim();
+        if (!champId) { toast('챔피언 ID/이름을 입력하세요.'); return; }
+        applyDraftSelection(match, champId);
+        input.value = '';
+        return;
+      }
+
+      if (action === 'undoDraft') { if (match) undoDraft(match); return; }
+      if (action === 'resetDraft') {
+        if (!match) return;
+        openModal({
+          title: '드래프트 초기화',
+          bodyHtml: `<p class="text-sm text-slate-300">현재 매치의 밴/픽 기록을 모두 초기화할까요?</p>`,
+          footerHtml: `
+            <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
+            <button data-action="resetDraftConfirm" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">초기화</button>
+          `
+        });
+        return;
+      }
+      if (action === 'resetDraftConfirm') {
+        const m = ensureCurrentMatch();
+        resetDraft(m);
+        closeModal();
+        toast('드래프트를 초기화했습니다.');
+        return;
+      }
+
+      if (action === 'finishDraft') {
+        if (!match) return;
+        finalizeDraft(match);
+        return;
+      }
+
+      if (action === 'goDraft') { state.view = 'draft'; saveAppState(); render(); return; }
+      if (action === 'goReport') { state.view = 'report'; saveAppState(); render(); return; }
+      if (action === 'goHistory') { state.view = 'history'; saveAppState(); render(); return; }
+
+      if (action === 'setWinner') {
+        if (!match) return;
+        match.result.winnerSide = btn.getAttribute('data-side');
+        saveAppState();
+        render();
+        return;
+      }
+
+      if (action === 'saveReport') {
+        if (!match) return;
+        completeMatch(match);
+        return;
+      }
+
+      if (action === 'setPOTM') {
+        if (!match) return;
+        const player = btn.getAttribute('data-player');
+        // toggle candidate
+        match.potm = (match.potm === player) ? null : player;
+        saveAppState();
+        toast(match.potm ? 'POTM 후보로 지정했습니다. (저장 시 최종 POTM는 자동 재계산)' : 'POTM 후보를 해제했습니다.');
+        render();
+        return;
+      }
+
+      if (action === 'fillDemo') {
+        if (!match) return;
+        const player = btn.getAttribute('data-player');
+        const e = match.ratings[player] || {};
+        e.k = clamp(Math.floor(Math.random()*18), 0, 25);
+        e.d = clamp(Math.floor(Math.random()*12), 0, 20);
+        e.a = clamp(Math.floor(Math.random()*22), 0, 35);
+        e.cs = clamp(Math.floor(100 + Math.random()*250), 0, 500);
+        e.vision = clamp(Math.floor(10 + Math.random()*60), 0, 150);
+        e.rating = clamp(1 + Math.floor(Math.random()*10), 1, 10);
+        match.ratings[player] = e;
+        saveAppState();
+        render();
+        return;
+      }
+
+      if (action === 'openMatch') {
+        const id = btn.getAttribute('data-id');
+        state.currentMatchId = id;
+        saveAppState();
+        toast('매치를 불러왔습니다.');
+        state.view = 'draft';
+        saveAppState();
+        render();
+        return;
+      }
+
+      if (action === 'detailMatch') {
+        const id = btn.getAttribute('data-id');
+        const m = getMatchById(id);
+        if (!m) return;
+        const winner = m.result?.winnerSide ? (m.result.winnerSide==='BLUE'?m.blue.name:m.red.name) : '-';
+        const body = `
+          <div class="grid grid-cols-1 gap-3">
+            <div class="text-sm text-slate-300"><span class="font-bold">${escapeHtml(fmtDate(m.createdAt))}</span> · 상태: <span class="font-extrabold">${escapeHtml(m.status)}</span></div>
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div class="font-black">${escapeHtml(m.blue.name)} vs ${escapeHtml(m.red.name)}</div>
+              <div class="mt-1 text-sm text-slate-400">승리: <span class="text-slate-100 font-extrabold">${escapeHtml(winner)}</span> · POTM: <span class="text-amber-200 font-extrabold">${escapeHtml(m.potm||'-')}</span></div>
+              <div class="mt-2 text-xs text-slate-500">메모: ${escapeHtml(m.result?.notes||'')}</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="font-bold text-sky-200">${escapeHtml(m.blue.name)} (BLUE)</div>
+                <div class="mt-2 text-sm text-slate-300">BAN: ${(m.draft?.bans?.BLUE||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
+                <div class="mt-1 text-sm text-slate-300">PICK: ${(m.draft?.picks?.BLUE||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
+                <div class="mt-2 text-xs text-slate-500">선수: ${(m.blue.players||[]).filter(Boolean).map(escapeHtml).join(', ') || '-'}</div>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div class="font-bold text-rose-200">${escapeHtml(m.red.name)} (RED)</div>
+                <div class="mt-2 text-sm text-slate-300">BAN: ${(m.draft?.bans?.RED||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
+                <div class="mt-1 text-sm text-slate-300">PICK: ${(m.draft?.picks?.RED||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
+                <div class="mt-2 text-xs text-slate-500">선수: ${(m.red.players||[]).filter(Boolean).map(escapeHtml).join(', ') || '-'}</div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div class="font-bold">액션 로그</div>
+              <div class="mt-2 max-h-[220px] overflow-auto scrollbar text-xs text-slate-300">
+                ${(m.draft?.actions||[]).map((a,i)=>{
+                  const name = champs.find(x=>x.id===a.champId)?.name || a.champId;
+                  return `<div class="py-1 border-b border-slate-800/70"><span class="text-slate-500">${i+1}.</span> <span class="font-bold">${escapeHtml(a.teamName)}</span> · ${escapeHtml(a.type.toUpperCase())} · ${escapeHtml(name)}</div>`;
+                }).join('') || '<div class="text-slate-500">-</div>'}
+              </div>
+            </div>
+          </div>
+        `;
+        openModal({ title:'매치 상세', bodyHtml: body, footerHtml: `<button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">닫기</button>` });
+        return;
+      }
+
+      if (action === 'deleteMatch') {
+        const id = btn.getAttribute('data-id');
+        openModal({
+          title: '경기 삭제',
+          bodyHtml: `<p class="text-sm text-slate-300">이 경기를 삭제할까요? (되돌릴 수 없음)</p>`,
+          footerHtml: `
+            <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
+            <button data-action="deleteMatchConfirm" data-id="${escapeHtml(id)}" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">삭제</button>
+          `
+        });
+        return;
+      }
+
+      if (action === 'deleteMatchConfirm') {
+        const id = btn.getAttribute('data-id');
+        state.matches = state.matches.filter(m => m.id !== id);
+        if (state.currentMatchId === id) state.currentMatchId = state.matches[0]?.id || null;
+        saveAppState();
+        closeModal();
+        toast('경기를 삭제했습니다.');
+        render();
+        return;
+      }
+
+      if (action === 'copyChamp') {
+        const champId = btn.getAttribute('data-champ');
+        navigator.clipboard?.writeText(champId).then(()=>toast('챔피언 ID 복사됨')).catch(()=>toast('복사 실패'));
+        return;
+      }
+
+      if (action === 'export') { openExportModal(); return; }
+      if (action === 'import') { openImportModal(); return; }
+
+      if (action === 'importDo') {
+        const box = document.getElementById('importBox');
+        const txt = box?.value || '';
+        try {
+          const parsed = JSON.parse(txt);
+          if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
+          // minimal validation
+          if (!Array.isArray(parsed.matches)) throw new Error('missing matches');
+          state = parsed;
+          localStorage.setItem(APP_KEY, JSON.stringify(state));
+          closeModal();
+          toast('Import 완료!');
+          render();
+        } catch (err) {
+          toast('Import 실패: JSON 형식을 확인하세요.');
+        }
+        return;
+      }
+
+      if (action === 'addPlayer') {
+        const input = document.querySelector('[data-input="newPlayer"]');
+        const name = (input?.value || '').trim();
+        if (!name) return;
+        const set = new Set(state.players || []);
+        set.add(name);
+        state.players = [...set];
+        input.value = '';
+        saveAppState();
+        toast('선수 추가');
+        render();
+        return;
+      }
+
+      if (action === 'removePlayer') {
+        const name = btn.getAttribute('data-player');
+        state.players = (state.players || []).filter(p => p !== name);
+        saveAppState();
+        toast('선수 삭제');
+        render();
+        return;
+      }
+
+      if (action === 'presetPlayer') {
+        // handled in change
+        return;
+      }
+
+      if (action === 'applyPresetToCurrent') {
+        const m = ensureCurrentMatch();
+        const p = state.lastTeamPreset || {};
+        m.blue.name = p.blueTeamName || m.blue.name;
+        m.red.name = p.redTeamName || m.red.name;
+        m.blue.players = (p.bluePlayers || []).slice(0,5);
+        m.red.players = (p.redPlayers || []).slice(0,5);
+        m.ratings = createEmptyRatings([...(m.blue.players||[]), ...(m.red.players||[])]);
+        saveAppState();
+        toast('현재 매치에 프리셋 적용 완료');
+        render();
+        return;
+      }
+
+      if (action === 'presetTeamName') {
+        // handled in input
+        return;
+      }
+
+      if (action === 'resetAll') {
+        openModal({
+          title: '전체 초기화',
+          bodyHtml: `<p class="text-sm text-slate-300">모든 경기/설정 데이터를 삭제할까요? (되돌릴 수 없음)</p>`,
+          footerHtml: `
+            <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
+            <button data-action="resetAllConfirm" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">초기화</button>
+          `
+        });
+        return;
+      }
+
+      if (action === 'resetAllConfirm') {
+        localStorage.removeItem(APP_KEY);
+        localStorage.removeItem(CHAMP_CACHE_KEY);
+        state = loadAppState();
+        closeModal();
+        toast('전체 데이터를 초기화했습니다.');
+        render();
+        return;
+      }
+
+      if (action === 'deleteMatchConfirm' || action === 'resetDraftConfirm' || action === 'resetAllConfirm') return;
+    });
+
+    // IME(한글) 조합 입력 이벤트 처리: 조합 중 리렌더 방지
+    document.addEventListener('compositionstart', (e) => {
+      const t = e.target;
+      if (t && t.matches && t.matches('[data-input="champQuery"]')) {
+        ui._isComposing = true;
+      }
+    });
+
+    document.addEventListener('compositionend', (e) => {
+      const t = e.target;
+      if (t && t.matches && t.matches('[data-input="champQuery"]')) {
+        ui._isComposing = false;
+        ui.champQuery = t.value;
+        // compositionend 직후 input 이벤트가 한 번 더 올 수 있어 중복 리렌더를 방지
+        ui._skipNextChampQueryInput = true;
+        // 조합 종료 시점에만 안전하게 리렌더
+        renderPreserveFocus();
+      }
+    });
+
+    document.addEventListener('input', (e) => {
+      const t = e.target;
+      if (t.matches('[data-input="champQuery"]')) {
+        // 조합 입력 중에는 리렌더하면 초성만 남고 입력이 끊김
+        ui.champQuery = t.value;
+        if (ui._skipNextChampQueryInput) {
+          ui._skipNextChampQueryInput = false;
+          return;
+        }
+        if (!ui._isComposing) renderPreserveFocus();
+      }
+
+      if (t.matches('[data-input="onlyAvailable"]')) {
+        ui.showOnlyAvailable = t.checked;
+        renderPreserveFocus();
+      }
+
+      if (t.matches('[data-input="matchNotes"]')) {
+        const m = getCurrentMatch();
+        if (!m) return;
+        m.result.notes = t.value;
+        saveAppState();
+      }
+
+      if (t.matches('[data-action="rateInput"]')) {
+        const m = getCurrentMatch();
+        if (!m) return;
+        const player = t.getAttribute('data-player');
+        const key = t.getAttribute('data-key');
+        if (!player || !key) return;
+        m.ratings = m.ratings || {};
+        const e0 = m.ratings[player] || { k:0,d:0,a:0,cs:0,vision:0,rating:7,comment:'' };
+        if (key === 'comment') e0.comment = t.value;
+        else if (key === 'rating') e0.rating = clamp(Number(t.value), 1, 10);
+        else e0[key] = Number(t.value);
+        m.ratings[player] = e0;
+        saveAppState();
+        // don't fully rerender on every keystroke in comment; but keep simple
+      }
+
+      if (t.matches('[data-action="setupTeamName"]')) {
+        const m = getCurrentMatch();
+        if (!m) return;
+        const side = t.getAttribute('data-side');
+        if (side === 'BLUE') m.blue.name = t.value.trim() || 'BLUE';
+        if (side === 'RED') m.red.name = t.value.trim() || 'RED';
+        state.lastTeamPreset = {
+          blueTeamName: m.blue.name,
+          redTeamName: m.red.name,
+          bluePlayers: m.blue.players,
+          redPlayers: m.red.players,
+        };
+        saveAppState();
+      }
+
+      if (t.matches('[data-action="presetTeamName"]')) {
+        const side = t.getAttribute('data-side');
+        state.lastTeamPreset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+        if (side === 'BLUE') state.lastTeamPreset.blueTeamName = t.value.trim() || 'BLUE';
+        if (side === 'RED') state.lastTeamPreset.redTeamName = t.value.trim() || 'RED';
+        saveAppState();
+      }
+    });
+
+    document.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t.matches('[data-action="setupPlayer"]')) {
+        const m = getCurrentMatch();
+        if (!m) return;
+        const side = t.getAttribute('data-side');
+        const idx = Number(t.getAttribute('data-idx') || 0);
+        const val = t.value;
+        const team = side === 'BLUE' ? m.blue : m.red;
+        team.players = team.players || [];
+        team.players[idx] = val;
+        // de-dup within team
+        team.players = team.players.filter((p,i,a) => p ? a.indexOf(p) === i : true).slice(0,5);
+        // keep length 5 for UI
+        while (team.players.length < 5) team.players.push('');
+
+        const allPlayers = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
+        m.ratings = createEmptyRatings(allPlayers);
+
+        state.lastTeamPreset = {
+          blueTeamName: m.blue.name,
+          redTeamName: m.red.name,
+          bluePlayers: (m.blue.players||[]).filter(Boolean).slice(0,5),
+          redPlayers: (m.red.players||[]).filter(Boolean).slice(0,5),
+        };
+        saveAppState();
+        // rerender modal for de-dup
+        openSetupModal(m);
+        return;
+      }
+
+      if (t.matches('[data-action="presetPlayer"]')) {
+        const side = t.getAttribute('data-side');
+        const idx = Number(t.getAttribute('data-idx') || 0);
+        const val = t.value;
+        state.lastTeamPreset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+        const arr = side === 'BLUE' ? (state.lastTeamPreset.bluePlayers = state.lastTeamPreset.bluePlayers || [])
+                                   : (state.lastTeamPreset.redPlayers = state.lastTeamPreset.redPlayers || []);
+        arr[idx] = val;
+        // de-dup within side
+        const dedup = arr.filter((p,i,a)=>p ? a.indexOf(p)===i : true).slice(0,5);
+        while (dedup.length < 5) dedup.push('');
+        if (side === 'BLUE') state.lastTeamPreset.bluePlayers = dedup;
+        else state.lastTeamPreset.redPlayers = dedup;
+        saveAppState();
+        render();
+      }
+    });
+
+    /**********************
+     * Init
+     **********************/
+    (async function init() {
+      await loadChampions();
+
+      // First visit UX: if there are no matches yet, start on Home instead of Draft.
+      if (!Array.isArray(state.matches) || state.matches.length === 0) {
+        state.view = 'home';
+      } else if (!state.view) {
+        state.view = 'home';
+      }
+
+      // Normalize current match players arrays to length 5
+      if (state.currentMatchId) {
+        const m = getCurrentMatch();
+        if (m) {
+          m.blue.players = (m.blue.players || []).slice(0,5);
+          m.red.players = (m.red.players || []).slice(0,5);
+        }
+      }
+      saveAppState();
+      render();
+    })();
+  </script>
+</body>
+</html>
