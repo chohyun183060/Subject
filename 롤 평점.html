@@ -342,6 +342,62 @@
       return obj;
     }
 
+    /**********************
+     * Team identity helpers (side swap-safe)
+     * - teamKeys: { BLUE:'A'|'B', RED:'A'|'B' }
+     * - Series score counts by teamKey, NOT by side.
+     **********************/
+    function ensureMatchTeamKeys(match) {
+      if (!match) return;
+      if (!match.teamKeys || typeof match.teamKeys !== 'object') match.teamKeys = { BLUE:'A', RED:'B' };
+      if (!match.teamKeys.BLUE) match.teamKeys.BLUE = 'A';
+      if (!match.teamKeys.RED) match.teamKeys.RED = 'B';
+      if (match.teamKeys.BLUE === match.teamKeys.RED) match.teamKeys = { BLUE:'A', RED:'B' };
+    }
+
+    function getTeamKeyForSide(match, side) {
+      ensureMatchTeamKeys(match);
+      return match.teamKeys?.[side] || (side === 'BLUE' ? 'A' : 'B');
+    }
+
+    function getSideForTeamKey(match, key) {
+      ensureMatchTeamKeys(match);
+      if (match.teamKeys.BLUE === key) return 'BLUE';
+      if (match.teamKeys.RED === key) return 'RED';
+      return null;
+    }
+
+    function teamKeyToTeamNameInMatch(match, key) {
+      const side = getSideForTeamKey(match, key);
+      if (side === 'BLUE') return match.blue?.name || 'BLUE';
+      if (side === 'RED') return match.red?.name || 'RED';
+      return key;
+    }
+
+    function getSeriesTeamName(seriesId, key) {
+      const ms = getSeriesMatches(seriesId);
+      for (let i = ms.length - 1; i >= 0; i--) {
+        const m = ms[i];
+        const side = getSideForTeamKey(m, key);
+        if (side === 'BLUE' && m.blue?.name) return m.blue.name;
+        if (side === 'RED' && m.red?.name) return m.red.name;
+      }
+      return key;
+    }
+
+    function getSeriesTeams(seriesId) {
+      return {
+        aName: getSeriesTeamName(seriesId, 'A'),
+        bName: getSeriesTeamName(seriesId, 'B'),
+      };
+    }
+
+    function winnerNameForMatch(m) {
+      const key = m?.result?.winnerKey || (m?.result?.winnerSide ? getTeamKeyForSide(m, m.result.winnerSide) : null);
+      if (!key) return '-';
+      return teamKeyToTeamNameInMatch(m, key) || '-';
+    }
+
     function createNewMatch(preset, opts = {}) {
       const seriesId = opts.seriesId || uid();
       const gameNo = Number(opts.gameNo || 1);
@@ -352,13 +408,17 @@
         gameNo,
         createdAt: nowISO(),
         status: 'drafting',
+        // current sides
         blue: { name: preset?.blueTeamName || 'BLUE', players: (preset?.bluePlayers || []).slice(0,5) },
         red:  { name: preset?.redTeamName  || 'RED',  players: (preset?.redPlayers  || []).slice(0,5) },
+        // stable team mapping for series score (default: A=BLUE, B=RED)
+        teamKeys: opts.teamKeys ? { ...opts.teamKeys } : { BLUE:'A', RED:'B' },
         draft: { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } },
-        result: { winnerSide: null, notes: '' },
+        result: { winnerSide: null, winnerKey: null, notes: '' },
         ratings: createEmptyRatings([...(preset?.bluePlayers||[]).slice(0,5), ...(preset?.redPlayers||[]).slice(0,5)]),
         potm: null,
       };
+      ensureMatchTeamKeys(m);
 
       state.matches.unshift(m);
       state.currentMatchId = m.id;
@@ -379,17 +439,49 @@
         .sort((a,b) => (a.gameNo || 1) - (b.gameNo || 1) || (new Date(a.createdAt) - new Date(b.createdAt)));
     }
 
+    // 강화: 3승(=winNeed) 달성 시 즉시 winnerKey/decidedAtGameNo를 기록해 "시리즈 종료"로 판정
+    // 주의: 승수는 side(BLUE/RED)가 아니라 teamKey(A/B) 기준으로 카운트
     function computeSeriesScore(seriesId) {
       const ms = getSeriesMatches(seriesId);
-      let blueWins = 0;
-      let redWins = 0;
+      let aWins = 0;
+      let bWins = 0;
+      let winnerKey = null;
+      let decidedAtGameNo = null;
+
       for (const m of ms) {
         if (m.status !== 'completed') continue;
-        if (m.result?.winnerSide === 'BLUE') blueWins += 1;
-        if (m.result?.winnerSide === 'RED') redWins += 1;
+        ensureMatchTeamKeys(m);
+
+        const winKey = m.result?.winnerKey || (m.result?.winnerSide ? getTeamKeyForSide(m, m.result.winnerSide) : null);
+        if (winKey === 'A') aWins += 1;
+        if (winKey === 'B') bWins += 1;
+
+        if (!winnerKey) {
+          if (aWins >= SERIES.winNeed) { winnerKey = 'A'; decidedAtGameNo = Number(m.gameNo || null); }
+          else if (bWins >= SERIES.winNeed) { winnerKey = 'B'; decidedAtGameNo = Number(m.gameNo || null); }
+        }
       }
-      const finished = (blueWins >= SERIES.winNeed) || (redWins >= SERIES.winNeed) || (blueWins + redWins >= SERIES.bo);
-      return { blueWins, redWins, finished, played: blueWins + redWins, total: SERIES.bo };
+
+      const played = aWins + bWins;
+      let finished = false;
+      if (winnerKey) finished = true;
+      else if (played >= SERIES.bo) {
+        finished = true;
+        if (aWins > bWins) winnerKey = 'A';
+        else if (bWins > aWins) winnerKey = 'B';
+        decidedAtGameNo = Number((ms.filter(x=>x.status==='completed').slice(-1)[0]?.gameNo) || null);
+      }
+
+      return { aWins, bWins, finished, played, total: SERIES.bo, winnerKey, decidedAtGameNo };
+    }
+
+    // 시리즈가 3승으로 종료된 이후(결정 게임보다 큰 gameNo)의 미완료 매치는 진행 불가 처리
+    function getSeriesLockForMatch(match) {
+      const score = computeSeriesScore(match.seriesId);
+      const gno = Number(match.gameNo || 1);
+      const decided = Number(score.decidedAtGameNo || 0);
+      const locked = !!(score.winnerKey && decided && gno > decided && match.status !== 'completed');
+      return { locked, ...score };
     }
 
     function getSeriesLockedChampsBeforeMatch(match) {
@@ -409,8 +501,11 @@
 
     function startNextGame(currentMatch) {
       const score = computeSeriesScore(currentMatch.seriesId);
+      const teams = getSeriesTeams(currentMatch.seriesId);
+
       if (score.finished) {
-        toast('시리즈가 이미 종료되었습니다. 새 시리즈를 시작하세요.');
+        const winnerName = score.winnerKey ? getSeriesTeamName(currentMatch.seriesId, score.winnerKey) : null;
+        toast(winnerName ? `시리즈 종료: ${winnerName} 우승 (3승)` : '시리즈가 이미 종료되었습니다.');
         return;
       }
       const nextNo = Math.min(SERIES.bo, (Number(currentMatch.gameNo || 1) + 1));
@@ -424,8 +519,8 @@
         bluePlayers: (currentMatch.blue?.players || []).slice(0,5),
         redPlayers: (currentMatch.red?.players || []).slice(0,5),
       };
-      const m = createNewMatch(preset, { seriesId: currentMatch.seriesId, gameNo: nextNo });
-      toast(`다음 판 생성: Game ${nextNo}/${SERIES.bo}`);
+      const m = createNewMatch(preset, { seriesId: currentMatch.seriesId, gameNo: nextNo, teamKeys: currentMatch.teamKeys });
+      toast(`다음 판 생성: Game ${nextNo}/${SERIES.bo} · 시리즈 ${teams.aName} ${score.aWins}:${score.bWins} ${teams.bName}`);
       state.view = 'draft';
       saveAppState();
       render();
@@ -464,6 +559,13 @@
     }
 
     function applyDraftSelection(match, champId) {
+      const lock = getSeriesLockForMatch(match);
+      if (lock.locked) {
+        const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+        toast(winnerName ? `시리즈 종료(${winnerName} 3승). 이 판은 진행할 수 없습니다.` : '시리즈가 종료되어 진행할 수 없습니다.');
+        return;
+      }
+
       const step = draftStep(match);
       if (!step) return;
       const allow = canSelectChamp(match, champId);
@@ -481,6 +583,13 @@
     }
 
     function undoDraft(match) {
+      const lock = getSeriesLockForMatch(match);
+      if (lock.locked) {
+        const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+        toast(winnerName ? `시리즈 종료(${winnerName} 3승). 이 판은 수정할 수 없습니다.` : '시리즈가 종료되어 수정할 수 없습니다.');
+        return;
+      }
+
       const last = match.draft.actions.pop();
       if (!last) return;
       const arr = last.type === 'ban' ? match.draft.bans[last.side] : match.draft.picks[last.side];
@@ -493,6 +602,13 @@
     }
 
     function resetDraft(match) {
+      const lock = getSeriesLockForMatch(match);
+      if (lock.locked) {
+        const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+        toast(winnerName ? `시리즈 종료(${winnerName} 3승). 이 판은 초기화할 수 없습니다.` : '시리즈가 종료되어 초기화할 수 없습니다.');
+        return;
+      }
+
       match.draft = { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } };
       match.status = 'drafting';
       saveAppState();
@@ -500,6 +616,13 @@
     }
 
     function finalizeDraft(match) {
+      const lock = getSeriesLockForMatch(match);
+      if (lock.locked) {
+        const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+        toast(winnerName ? `시리즈 종료(${winnerName} 3승). 이 판은 확정할 수 없습니다.` : '시리즈가 종료되어 확정할 수 없습니다.');
+        return;
+      }
+
       if (match.draft.stepIndex < DRAFT_STEPS.length) {
         toast('아직 드래프트가 끝나지 않았습니다.');
         return;
@@ -523,6 +646,13 @@
     }
 
     function completeMatch(match) {
+      const lock = getSeriesLockForMatch(match);
+      if (lock.locked) {
+        const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+        toast(winnerName ? `시리즈 종료(${winnerName} 3승). 이 판은 저장할 수 없습니다.` : '시리즈가 종료되어 저장할 수 없습니다.');
+        return;
+      }
+
       const allPlayers = [...match.blue.players, ...match.red.players].filter(Boolean);
       let best = null;
       for (const p of allPlayers) {
@@ -536,19 +666,30 @@
       }
       match.potm = best?.player || null;
 
-      if (!match.result?.winnerSide) {
-        toast('승리 팀을 선택해주세요.');
+      // Winner must be selected by TEAM (A/B). We still keep winnerSide for display/back-compat.
+      if (!match.result) match.result = { winnerSide: null, winnerKey: null, notes: '' };
+
+      if (!match.result.winnerKey && !match.result.winnerSide) {
+        toast('승리 팀(Team A/B)을 선택해주세요.');
         return;
+      }
+
+      // Backfill either direction
+      if (!match.result.winnerKey && match.result.winnerSide) {
+        match.result.winnerKey = getTeamKeyForSide(match, match.result.winnerSide);
+      }
+      if (!match.result.winnerSide && match.result.winnerKey) {
+        match.result.winnerSide = getSideForTeamKey(match, match.result.winnerKey);
       }
 
       match.status = 'completed';
       saveAppState();
 
       const score = computeSeriesScore(match.seriesId);
-      const scoreTxt = `${match.blue.name} ${score.blueWins} : ${score.redWins} ${match.red.name}`;
+      const teams = getSeriesTeams(match.seriesId);
+      const scoreTxt = `${teams.aName} ${score.aWins} : ${score.bWins} ${teams.bName}`;
       toast(`경기 저장 완료! POTM: ${match.potm || '-'} · 시리즈 ${scoreTxt}`);
 
-      // 시리즈가 끝났으면 통계로, 아니면 다음 판 안내를 위해 드래프트로 이동
       if (score.finished) {
         state.view = 'stats';
       } else {
@@ -566,7 +707,7 @@
                 이전 판에서 <span class="text-amber-200 font-extrabold">밴/픽된 챔피언</span>은 다음 판부터 자동으로 <span class="font-extrabold">LOCKED</span> 처리됩니다.
               </div>
               <div class="mt-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
-                시리즈 스코어: <span class="text-slate-100 font-bold">${escapeHtml(match.blue.name)}</span> ${score.blueWins} : ${score.redWins} <span class="text-slate-100 font-bold">${escapeHtml(match.red.name)}</span>
+                시리즈 스코어: <span class="text-slate-100 font-bold">${escapeHtml(teams.aName)}</span> ${score.aWins} : ${score.bWins} <span class="text-slate-100 font-bold">${escapeHtml(teams.bName)}</span>
               </div>
             `,
             footerHtml: `
@@ -576,6 +717,45 @@
           });
         }, 50);
       }
+    }
+
+    /**********************
+     * Side Swap
+     **********************/
+    function canSwapSides(match) {
+      if (!match) return { ok:false, reason:'매치가 없습니다.' };
+      const lock = getSeriesLockForMatch(match);
+      if (lock.locked) {
+        const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+        return { ok:false, reason: winnerName ? `시리즈 종료(${winnerName} 3승). 사이드 스왑 불가` : '시리즈 종료로 사이드 스왑 불가' };
+      }
+      const started = (match.draft?.actions || []).length > 0 || Number(match.draft?.stepIndex || 0) > 0;
+      if (started) return { ok:false, reason:'드래프트가 시작된 후에는 사이드 스왑을 할 수 없습니다.' };
+      if (match.status !== 'drafting') return { ok:false, reason:'DRAFTING 상태에서만 사이드 스왑이 가능합니다.' };
+      return { ok:true };
+    }
+
+    function swapSides(match) {
+      const allow = canSwapSides(match);
+      if (!allow.ok) { toast(allow.reason); return; }
+
+      const tmp = match.blue;
+      match.blue = match.red;
+      match.red = tmp;
+
+      ensureMatchTeamKeys(match);
+      const t = match.teamKeys.BLUE;
+      match.teamKeys.BLUE = match.teamKeys.RED;
+      match.teamKeys.RED = t;
+
+      // winner selection reset (just in case)
+      match.result = match.result || { winnerSide: null, winnerKey: null, notes: '' };
+      match.result.winnerSide = null;
+      match.result.winnerKey = null;
+
+      saveAppState();
+      toast('사이드 스왑 완료 (BLUE/RED 교체)');
+      render();
     }
 
     /**********************
@@ -607,15 +787,19 @@
     }
 
     function renderMatchHeader(match) {
+      const lock = getSeriesLockForMatch(match);
       const step = draftStep(match);
       const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
       const stepText = isDone ? '드래프트 완료' : `${match.draft.stepIndex+1}/${DRAFT_STEPS.length} · ${step.label} (${step.type.toUpperCase()})`;
 
       const lockedPrev = getSeriesLockedChampsBeforeMatch(match);
-      const score = computeSeriesScore(match.seriesId);
       const shortSeries = (match.seriesId || '').slice(0, 6);
+      const teams = getSeriesTeams(match.seriesId);
 
-      const nextEnabled = (match.status === 'completed') && !score.finished && (Number(match.gameNo||1) < SERIES.bo);
+      const nextEnabled = (match.status === 'completed') && !lock.finished && (Number(match.gameNo||1) < SERIES.bo);
+      const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+
+      const swapEnabled = !lock.locked && match.status === 'drafting' && (match.draft?.actions || []).length === 0 && Number(match.draft?.stepIndex || 0) === 0;
 
       return `
         <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
@@ -624,7 +808,8 @@
               <div class="flex flex-wrap items-center gap-2">
                 ${badge(`시리즈 ${shortSeries || '-'}`, 'border-slate-700 text-slate-200')}
                 ${badge(`BO${SERIES.bo} · Game ${match.gameNo || 1}/${SERIES.bo}`, 'border-slate-700 text-slate-200')}
-                ${badge(`${match.blue.name} ${score.blueWins} : ${score.redWins} ${match.red.name}`, 'border-amber-700 text-amber-200 bg-amber-950/30')}
+                ${badge(`${teams.aName} ${lock.aWins} : ${lock.bWins} ${teams.bName}`, 'border-amber-700 text-amber-200 bg-amber-950/30')}
+                ${lock.winnerKey ? badge(`시리즈 종료 · 우승: ${winnerName || lock.winnerKey} (3승)`, 'border-emerald-700 text-emerald-200 bg-emerald-950/30') : ''}
                 ${match.status === 'drafting' ? badge('DRAFTING', 'border-sky-700 text-sky-200 bg-sky-950/30') : ''}
                 ${match.status === 'draftComplete' ? badge('DRAFT COMPLETE', 'border-emerald-700 text-emerald-200 bg-emerald-950/30') : ''}
                 ${match.status === 'completed' ? badge('COMPLETED', 'border-amber-700 text-amber-200 bg-amber-950/30') : ''}
@@ -633,10 +818,12 @@
               <div class="mt-2 flex flex-col gap-1">
                 <div class="text-sm text-slate-300">진행: <span class="font-extrabold text-slate-100">${escapeHtml(stepText)}</span></div>
                 <div class="text-xs text-slate-500">피어리스 LOCKED(이전 판 밴/픽): <span class="text-amber-200 font-extrabold">${lockedPrev.size}</span>개</div>
+                <div class="text-[11px] text-slate-500">사이드 매핑: BLUE=${escapeHtml(getTeamKeyForSide(match,'BLUE'))} · RED=${escapeHtml(getTeamKeyForSide(match,'RED'))}</div>
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
               <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
+              <button data-action="swapSides" class="px-3 py-2 rounded-xl ${swapEnabled ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-semibold" ${swapEnabled ? '' : 'disabled'}>사이드 스왑</button>
               <button data-action="nextGame" class="px-3 py-2 rounded-xl ${nextEnabled ? 'bg-sky-700 hover:bg-sky-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${nextEnabled ? '' : 'disabled'}>다음 판</button>
               <button data-action="openSetup" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">팀/선수 설정</button>
               <button data-action="export" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Export</button>
@@ -730,7 +917,8 @@
     }
 
     function renderChampionPicker(match) {
-      const step = draftStep(match);
+      const lock = getSeriesLockForMatch(match);
+      const step = lock.locked ? null : draftStep(match);
       const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
       const taken = getAlreadyTakenInMatch(match);
       const lockedPrev = getSeriesLockedChampsBeforeMatch(match);
@@ -750,23 +938,31 @@
         list = list.filter(c => isSelectable(c.id));
       }
 
+      const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+      const lockNote = lock.locked ? `
+        <div class="mt-3 p-3 rounded-xl bg-amber-950/20 border border-amber-700/30 text-amber-200 text-xs">
+          시리즈가 <span class="font-extrabold">${escapeHtml(winnerName || lock.winnerKey || '-')}(3승)</span>으로 종료되어, Game ${escapeHtml(match.gameNo || 1)}은 진행할 수 없습니다.
+        </div>
+      ` : '';
+
       const header = `
         <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
                 <div class="text-lg font-extrabold">챔피언 선택</div>
-                ${step ? badge(`${step.label}`, step.side === 'BLUE' ? 'border-sky-700 text-sky-200 bg-sky-950/30' : 'border-rose-700 text-rose-200 bg-rose-950/30') : badge('완료', 'border-slate-700 text-slate-200')}
+                ${step ? badge(`${step.label}`, step.side === 'BLUE' ? 'border-sky-700 text-sky-200 bg-sky-950/30' : 'border-rose-700 text-rose-200 bg-rose-950/30') : badge(lock.locked ? '시리즈 종료' : '완료', lock.locked ? 'border-amber-700 text-amber-200 bg-amber-950/30' : 'border-slate-700 text-slate-200')}
                 ${step ? badge(step.type.toUpperCase(), 'border-slate-700 text-slate-200') : ''}
                 ${badge(`LOCKED: ${lockedPrev.size}`, 'border-amber-700 text-amber-200 bg-amber-950/30')}
               </div>
               <p class="text-xs text-slate-400 mt-1">클릭하면 현재 단계에 바로 기록됩니다. (LOCKED/TAKEN 챔피언은 비활성화)</p>
+              ${lockNote}
             </div>
 
             <div class="flex flex-wrap gap-2">
               <button data-action="undoDraft" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">되돌리기</button>
               <button data-action="resetDraft" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">전체 초기화</button>
-              <button data-action="finishDraft" class="px-3 py-2 rounded-xl ${isDone ? 'bg-emerald-700 hover:bg-emerald-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${isDone ? '' : 'disabled'}>드래프트 확정</button>
+              <button data-action="finishDraft" class="px-3 py-2 rounded-xl ${isDone && !lock.locked ? 'bg-emerald-700 hover:bg-emerald-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${(isDone && !lock.locked) ? '' : 'disabled'}>드래프트 확정</button>
             </div>
           </div>
 
@@ -799,7 +995,7 @@
             ${list.map(c => {
               const takenFlag = taken.has(c.id);
               const lockedFlag = lockedPrev.has(c.id);
-              const selectable = step && !takenFlag && !lockedFlag;
+              const selectable = !lock.locked && step && !takenFlag && !lockedFlag;
               const ring = selectable ? 'ring-1 ring-emerald-500/40 hover:ring-emerald-400/60' : 'ring-1 ring-slate-700/50';
               const opacity = selectable ? '' : 'opacity-50';
               const cursor = selectable ? 'cursor-pointer' : 'cursor-not-allowed';
@@ -824,7 +1020,7 @@
             <p class="text-xs text-slate-500 mt-1">아이콘은 표시되지 않을 수 있습니다(입력값을 ID로 저장). 오타 주의!</p>
             <div class="mt-2 flex flex-col md:flex-row gap-2">
               <input data-input="manualChamp" placeholder="예: Ahri / LeeSin / CustomName" class="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-600" />
-              <button data-action="pickManual" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">현재 단계에 기록</button>
+              <button data-action="pickManual" class="px-3 py-2 rounded-xl ${lock.locked ? 'bg-slate-700/60 cursor-not-allowed' : 'bg-sky-700 hover:bg-sky-600'} font-bold" ${lock.locked ? 'disabled' : ''}>현재 단계에 기록</button>
             </div>
             <div class="mt-2 text-xs text-amber-200/90">
               참고: 직접 입력도 BO5 피어리스 LOCKED 규칙이 적용됩니다.
@@ -848,13 +1044,16 @@
 
       const lastCard = last ? (() => {
         const score = computeSeriesScore(last.seriesId);
+        const teams = getSeriesTeams(last.seriesId);
+        const winnerName = score.winnerKey ? getSeriesTeamName(last.seriesId, score.winnerKey) : null;
         return `
           <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-xs text-slate-500">최근 기록</div>
-                <div class="mt-1 font-black text-lg">${escapeHtml(last.blue?.name || 'BLUE')} <span class="text-slate-500">vs</span> ${escapeHtml(last.red?.name || 'RED')}</div>
-                <div class="mt-1 text-sm text-slate-300">시리즈: <span class="text-amber-200 font-extrabold">${escapeHtml((last.seriesId||'').slice(0,6))}</span> · Game ${last.gameNo||1}/${SERIES.bo} · 스코어 ${last.blue?.name} ${score.blueWins}:${score.redWins} ${last.red?.name}</div>
+                <div class="mt-1 font-black text-lg">${escapeHtml(teams.aName)} <span class="text-slate-500">vs</span> ${escapeHtml(teams.bName)}</div>
+                <div class="mt-1 text-sm text-slate-300">시리즈: <span class="text-amber-200 font-extrabold">${escapeHtml((last.seriesId||'').slice(0,6))}</span> · 최근 Game ${last.gameNo||1}/${SERIES.bo} · 스코어 ${escapeHtml(teams.aName)} ${score.aWins}:${score.bWins} ${escapeHtml(teams.bName)}</div>
+                ${score.winnerKey ? `<div class="mt-1 text-xs text-emerald-200 font-extrabold">시리즈 종료: ${escapeHtml(winnerName || score.winnerKey)} 우승 (3승)</div>` : ''}
                 <div class="mt-1 text-xs text-slate-500">상태: <span class="font-extrabold text-slate-100">${escapeHtml((last.status || '').toUpperCase() || '-')}</span> · 생성: <span class="text-slate-400">${escapeHtml(fmtDate(last.createdAt))}</span></div>
               </div>
               <button data-action="openMatch" data-id="${escapeHtml(last.id)}" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">열기</button>
@@ -917,10 +1116,26 @@
     function renderDraftView() {
       const match = ensureCurrentMatch();
       const top = renderMatchHeader(match);
+      const lock = getSeriesLockForMatch(match);
+      const winnerName = lock.winnerKey ? getSeriesTeamName(match.seriesId, lock.winnerKey) : null;
+
+      const lockBanner = lock.locked ? `
+        <section class="bg-slate-900 border border-amber-700/30 rounded-2xl p-4">
+          <div class="font-extrabold text-amber-200">시리즈가 이미 종료되었습니다.</div>
+          <div class="mt-1 text-sm text-slate-300">우승: <span class="font-extrabold text-emerald-200">${escapeHtml(winnerName || lock.winnerKey || '-')}</span> (3승) · 결정 게임: Game ${escapeHtml(lock.decidedAtGameNo || '-')}/${SERIES.bo}</div>
+          <div class="mt-2 text-xs text-slate-500">이 판(Game ${escapeHtml(match.gameNo || 1)})은 결정 게임 이후에 생성된 판이라 드래프트/저장이 막혀 있습니다.</div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">새 시리즈 시작</button>
+            <button data-action="goHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">히스토리 보기</button>
+            <button data-action="goReport" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">현재 판 평점</button>
+          </div>
+        </section>
+      ` : '';
 
       const layout = `
         <div class="grid grid-cols-1 gap-4">
           ${top}
+          ${lockBanner}
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div class="lg:col-span-1 flex flex-col gap-4">
               ${renderTeamPanel(match, 'BLUE')}
@@ -940,12 +1155,19 @@
       const allPlayers = [...(match.blue.players||[]), ...(match.red.players||[])].filter(Boolean);
       const stepDone = match.draft.stepIndex >= DRAFT_STEPS.length;
 
-      const winnerBadge = (side) => {
-        const active = match.result.winnerSide === side;
-        const color = side === 'BLUE' ? 'sky' : 'rose';
+      // Winner selection is TEAM-based (A/B), not side-based (BLUE/RED)
+      const winnerBadge = (key) => {
+        const active = match.result?.winnerKey === key;
+        const side = getSideForTeamKey(match, key);
+        const teamName = teamKeyToTeamNameInMatch(match, key);
+        const color = key === 'A' ? 'indigo' : 'fuchsia';
+
         return `
-          <button data-action="setWinner" data-side="${side}" class="px-3 py-2 rounded-xl border ${active ? `bg-${color}-700/30 border-${color}-500 text-${color}-100` : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-900'} font-bold text-sm">
-            ${side === 'BLUE' ? escapeHtml(match.blue.name) : escapeHtml(match.red.name)} 승
+          <button data-action="setWinner" data-key="${key}" class="px-3 py-2 rounded-xl border ${active ? `bg-${color}-700/25 border-${color}-400 text-${color}-50` : `bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-900`} font-bold text-sm">
+            <span class="inline-flex flex-col leading-tight">
+              <span>${escapeHtml(teamName)} 승 <span class="text-[11px] text-slate-400 font-semibold">(Team ${key})</span></span>
+              <span class="text-[11px] font-semibold ${active ? `text-${color}-200` : 'text-slate-500'}">현재 ${escapeHtml(side || '-')} 사이드</span>
+            </span>
           </button>
         `;
       };
@@ -975,10 +1197,10 @@
           </div>
 
           <div class="mt-4 flex flex-wrap gap-2">
-            ${winnerBadge('BLUE')}
-            ${winnerBadge('RED')}
+            ${winnerBadge('A')}
+            ${winnerBadge('B')}
             <div class="flex-1"></div>
-            <div class="text-xs text-slate-500 self-center">드래프트 확정 후 입력 권장</div>
+            <div class="text-xs text-slate-500 self-center">승리 선택은 Team A/B 기준(사이드 스왑과 무관)</div>
           </div>
 
           <div class="mt-3">
@@ -1245,6 +1467,8 @@
             <div class="font-extrabold">팁</div>
             <ul class="mt-2 text-sm text-slate-400 list-disc pl-5">
               <li>BO5 피어리스는 <span class="text-amber-200 font-bold">시리즈(Series ID)</span> 기준으로 누적됩니다. 새 시리즈를 만들면 LOCKED가 초기화됩니다.</li>
+              <li><span class="text-emerald-200 font-bold">한쪽 3승</span> 달성 시 시리즈는 즉시 종료되며, 결정 게임 이후 판은 진행할 수 없습니다.</li>
+              <li>매 판 <span class="text-sky-200 font-bold">사이드 스왑</span>이 가능하며, 승수는 사이드가 아닌 팀(A/B) 기준으로 집계됩니다.</li>
               <li>Export/Import로 다른 PC로 옮기거나 백업할 수 있습니다.</li>
             </ul>
           </section>
@@ -1254,12 +1478,14 @@
 
     function renderHistoryView() {
       const cards = state.matches.map(m => {
-        const winner = m.result?.winnerSide ? (m.result.winnerSide === 'BLUE' ? m.blue.name : m.red.name) : '-';
+        const winner = winnerNameForMatch(m);
         const potm = m.potm || '-';
         const statusColor = m.status === 'completed' ? 'border-amber-700 text-amber-200 bg-amber-950/30'
                           : m.status === 'draftComplete' ? 'border-emerald-700 text-emerald-200 bg-emerald-950/30'
                           : 'border-sky-700 text-sky-200 bg-sky-950/30';
         const score = computeSeriesScore(m.seriesId);
+        const teams = getSeriesTeams(m.seriesId);
+        const seriesWinner = score.winnerKey ? getSeriesTeamName(m.seriesId, score.winnerKey) : null;
         return `
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1267,11 +1493,12 @@
                 <div class="flex flex-wrap items-center gap-2">
                   ${badge(m.status.toUpperCase(), statusColor)}
                   ${badge(`S:${(m.seriesId||'').slice(0,6)} · G${m.gameNo||1}/${SERIES.bo}`, 'border-slate-700 text-slate-200')}
+                  ${score.winnerKey ? badge(`우승: ${seriesWinner || score.winnerKey}`, 'border-emerald-700 text-emerald-200 bg-emerald-950/30') : ''}
                   <span class="text-xs text-slate-500">${escapeHtml(fmtDate(m.createdAt))}</span>
                 </div>
-                <div class="mt-2 font-black text-lg truncate">${escapeHtml(m.blue.name)} <span class="text-slate-500">vs</span> ${escapeHtml(m.red.name)}</div>
-                <div class="mt-1 text-sm text-slate-300">시리즈 스코어(완료 기준): <span class="font-extrabold text-amber-200">${escapeHtml(m.blue.name)} ${score.blueWins} : ${score.redWins} ${escapeHtml(m.red.name)}</span></div>
-                <div class="mt-1 text-sm text-slate-300">승리: <span class="font-extrabold text-slate-100">${escapeHtml(winner)}</span> · POTM: <span class="font-extrabold text-amber-200">${escapeHtml(potm)}</span></div>
+                <div class="mt-2 font-black text-lg truncate">${escapeHtml(teams.aName)} <span class="text-slate-500">vs</span> ${escapeHtml(teams.bName)}</div>
+                <div class="mt-1 text-sm text-slate-300">시리즈 스코어(완료 기준): <span class="font-extrabold text-amber-200">${escapeHtml(teams.aName)} ${score.aWins} : ${score.bWins} ${escapeHtml(teams.bName)}</span></div>
+                <div class="mt-1 text-sm text-slate-300">승리(해당 게임): <span class="font-extrabold text-slate-100">${escapeHtml(winner)}</span> · POTM: <span class="font-extrabold text-amber-200">${escapeHtml(potm)}</span></div>
               </div>
               <div class="flex flex-wrap gap-2">
                 <button data-action="openMatch" data-id="${escapeHtml(m.id)}" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 text-sm font-bold">열기</button>
@@ -1282,11 +1509,11 @@
 
             <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <div class="text-xs text-sky-200 font-bold">${escapeHtml(m.blue.name)}</div>
+                <div class="text-xs text-sky-200 font-bold">${escapeHtml(m.blue.name)} (BLUE)</div>
                 <div class="text-xs text-slate-400 mt-1">PICK: ${(m.draft?.picks?.BLUE||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
               </div>
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <div class="text-xs text-rose-200 font-bold">${escapeHtml(m.red.name)}</div>
+                <div class="text-xs text-rose-200 font-bold">${escapeHtml(m.red.name)} (RED)</div>
                 <div class="text-xs text-slate-400 mt-1">PICK: ${(m.draft?.picks?.RED||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
               </div>
             </div>
@@ -1301,7 +1528,7 @@
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-lg font-extrabold">경기 히스토리</div>
-                <div class="text-xs text-slate-500 mt-1">각 기록은 "한 판"이며, 동일 Series ID로 BO5를 묶습니다.</div>
+                <div class="text-xs text-slate-500 mt-1">각 기록은 "한 판"이며, 동일 Series ID로 BO5를 묶습니다. (팀은 A/B로 고정, 매 판 BLUE/RED는 스왑 가능)</div>
               </div>
               <div class="flex gap-2">
                 <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
@@ -1395,6 +1622,7 @@
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
+              <button data-action="swapPresetSides" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">프리셋 BLUE↔RED 스왑</button>
               <button data-action="applyPresetToCurrent" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">현재 판에 적용</button>
               <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">프리셋으로 새 시리즈</button>
             </div>
@@ -1430,7 +1658,8 @@
       const match = getCurrentMatch();
       if (!match) return;
 
-      const step = draftStep(match);
+      const lock = getSeriesLockForMatch(match);
+      const step = lock.locked ? null : draftStep(match);
       const taken = getAlreadyTakenInMatch(match);
       const lockedPrev = getSeriesLockedChampsBeforeMatch(match);
 
@@ -1457,7 +1686,7 @@
       listEl.innerHTML = list.map(c => {
         const takenFlag = taken.has(c.id);
         const lockedFlag = lockedPrev.has(c.id);
-        const selectable = step && !takenFlag && !lockedFlag;
+        const selectable = !lock.locked && step && !takenFlag && !lockedFlag;
         const ring = selectable ? 'ring-1 ring-emerald-500/40 hover:ring-emerald-400/60' : 'ring-1 ring-slate-700/50';
         const opacity = selectable ? '' : 'opacity-50';
         const cursor = selectable ? 'cursor-pointer' : 'cursor-not-allowed';
@@ -1483,6 +1712,9 @@
      * Setup Modal
      **********************/
     function openSetupModal(match) {
+      const swapAllow = canSwapSides(match);
+      const swapEnabled = swapAllow.ok;
+
       const playerSel = (side, idx, selected) => `
         <label class="text-xs text-slate-400">
           ${side} ${idx+1}
@@ -1500,7 +1732,7 @@
 
       const body = `
         <div class="grid grid-cols-1 gap-4">
-          <div class="text-sm text-slate-300">팀 이름과 선수(최대 5명)를 설정하세요. BO5 피어리스 LOCKED는 <span class="font-extrabold text-amber-200">같은 시리즈</span>의 이전 판 밴/픽 기준입니다.</div>
+          <div class="text-sm text-slate-300">팀 이름과 선수(최대 5명)를 설정하세요. BO5 피어리스 LOCKED는 <span class="font-extrabold text-amber-200">같은 시리즈</span>의 이전 판 밴/픽 기준입니다. (사이드 스왑은 드래프트 시작 전만 가능)</div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -1535,8 +1767,11 @@
       `;
 
       const footer = `
-        <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">닫기</button>
-        <button data-action="setupSave" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">저장</button>
+        <div class="flex flex-1 flex-wrap gap-2 justify-end">
+          <button data-action="setupSwapSides" class="px-3 py-2 rounded-xl ${swapEnabled ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-700/60 cursor-not-allowed'} font-semibold" ${swapEnabled ? '' : 'disabled'} title="${escapeHtml(swapEnabled ? 'BLUE/RED 팀과 선수 위치를 서로 바꿉니다.' : (swapAllow.reason || '지금은 스왑할 수 없습니다.'))}">BLUE↔RED 스왑</button>
+          <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">닫기</button>
+          <button data-action="setupSave" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">저장</button>
+        </div>
       `;
 
       openModal({ title: '팀/선수 설정', bodyHtml: body, footerHtml: footer });
@@ -1600,6 +1835,11 @@
         return;
       }
 
+      if (action === 'swapSides') {
+        swapSides(ensureCurrentMatch());
+        return;
+      }
+
       if (action === 'nextGame') {
         const m = ensureCurrentMatch();
         if (m.status !== 'completed') {
@@ -1640,6 +1880,16 @@
       if (action === 'homeStats') { state.view = 'stats'; saveAppState(); render(); return; }
 
       if (action === 'openSetup') { openSetupModal(ensureCurrentMatch()); return; }
+
+      if (action === 'setupSwapSides') {
+        const m = ensureCurrentMatch();
+        const allow = canSwapSides(m);
+        if (!allow.ok) { toast(allow.reason); return; }
+        swapSides(m);
+        // swapSides() will render(), but the modal content must be refreshed too
+        openSetupModal(m);
+        return;
+      }
 
       if (action === 'quickApply') {
         const root = document.getElementById('modalRoot');
@@ -1711,7 +1961,12 @@
 
       if (action === 'setWinner') {
         if (!match) return;
-        match.result.winnerSide = btn.getAttribute('data-side');
+        const key = btn.getAttribute('data-key');
+        if (!key) return;
+        match.result = match.result || { winnerSide: null, winnerKey: null, notes: '' };
+        match.result.winnerKey = key;
+        // keep side for display/back-compat
+        match.result.winnerSide = getSideForTeamKey(match, key);
         saveAppState();
         render();
         return;
@@ -1760,15 +2015,17 @@
         const id = btn.getAttribute('data-id');
         const m = getMatchById(id);
         if (!m) return;
-        const winner = m.result?.winnerSide ? (m.result.winnerSide==='BLUE'?m.blue.name:m.red.name) : '-';
+        const winner = winnerNameForMatch(m);
+        const teams = getSeriesTeams(m.seriesId);
         const body = `
           <div class="grid grid-cols-1 gap-3">
             <div class="text-sm text-slate-300"><span class="font-bold">${escapeHtml(fmtDate(m.createdAt))}</span> · 상태: <span class="font-extrabold">${escapeHtml(m.status)}</span></div>
             <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
               <div class="font-black">S:${escapeHtml((m.seriesId||'').slice(0,6))} · Game ${m.gameNo||1}/${SERIES.bo}</div>
-              <div class="mt-1 font-black">${escapeHtml(m.blue.name)} vs ${escapeHtml(m.red.name)}</div>
-              <div class="mt-1 text-sm text-slate-400">승리: <span class="text-slate-100 font-extrabold">${escapeHtml(winner)}</span> · POTM: <span class="text-amber-200 font-extrabold">${escapeHtml(m.potm||'-')}</span></div>
+              <div class="mt-1 font-black">${escapeHtml(teams.aName)} vs ${escapeHtml(teams.bName)}</div>
+              <div class="mt-1 text-sm text-slate-400">승리(해당 게임): <span class="text-slate-100 font-extrabold">${escapeHtml(winner)}</span> · POTM: <span class="text-amber-200 font-extrabold">${escapeHtml(m.potm||'-')}</span></div>
               <div class="mt-2 text-xs text-slate-500">메모: ${escapeHtml(m.result?.notes||'')}</div>
+              <div class="mt-2 text-xs text-slate-500">사이드 매핑: BLUE=${escapeHtml(getTeamKeyForSide(m,'BLUE'))} · RED=${escapeHtml(getTeamKeyForSide(m,'RED'))}</div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1871,6 +2128,21 @@
         state.players = (state.players || []).filter(p => p !== name);
         saveAppState();
         toast('선수 삭제');
+        render();
+        return;
+      }
+
+      if (action === 'swapPresetSides') {
+        state.lastTeamPreset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+        const p = state.lastTeamPreset;
+        const tmpName = p.blueTeamName;
+        p.blueTeamName = p.redTeamName;
+        p.redTeamName = tmpName;
+        const tmpPlayers = p.bluePlayers;
+        p.bluePlayers = Array.isArray(p.redPlayers) ? p.redPlayers.slice(0,5) : [];
+        p.redPlayers = Array.isArray(tmpPlayers) ? tmpPlayers.slice(0,5) : [];
+        saveAppState();
+        toast('프리셋 BLUE/RED 스왑 완료');
         render();
         return;
       }
@@ -2049,13 +2321,14 @@
     (async function init() {
       await loadChampions();
 
-      // migrate old data (if any): ensure seriesId/gameNo exist
+      // migrate old data (if any)
       if (Array.isArray(state.matches)) {
         for (const m of state.matches) {
           if (!m.seriesId) m.seriesId = m.id;
           if (!m.gameNo) m.gameNo = 1;
           if (!m.draft) m.draft = { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } };
-          if (!m.result) m.result = { winnerSide: null, notes: '' };
+          if (!m.result) m.result = { winnerSide: null, winnerKey: null, notes: '' };
+          if (!('winnerKey' in m.result)) m.result.winnerKey = null;
           if (!m.blue) m.blue = { name:'BLUE', players:[] };
           if (!m.red) m.red = { name:'RED', players:[] };
           if (!m.ratings) {
@@ -2063,6 +2336,12 @@
             m.ratings = createEmptyRatings(allPlayers);
           }
           if (!m.status) m.status = 'drafting';
+          ensureMatchTeamKeys(m);
+
+          // backfill winnerKey for completed matches if missing
+          if (m.status === 'completed' && !m.result.winnerKey && m.result.winnerSide) {
+            m.result.winnerKey = getTeamKeyForSide(m, m.result.winnerSide);
+          }
         }
       }
 
