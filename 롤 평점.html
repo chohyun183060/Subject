@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>롤 멸망전 - 피어리스 드래프트 & POTM</title>
+  <title>롤 멸망전 - 피어리스(BO5) 드래프트 & POTM</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root { color-scheme: dark; }
@@ -18,7 +18,7 @@
   <div class="max-w-7xl mx-auto px-4 py-6">
     <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl md:text-3xl font-black tracking-tight">🎮 롤 멸망전 <span class="text-sky-300">피어리스 드래프트</span> & <span class="text-amber-300">POTM</span></h1>
+        <h1 class="text-2xl md:text-3xl font-black tracking-tight">🎮 롤 멸망전 <span class="text-sky-300">피어리스(BO5)</span> 드래프트 & <span class="text-amber-300">POTM</span></h1>
         <p class="text-slate-400 text-sm mt-1">라이엇 API 없이 수동 입력 · 데이터는 이 브라우저(LocalStorage)에 저장됩니다.</p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -36,7 +36,7 @@
     <footer class="mt-10 text-xs text-slate-500">
       <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <p>드래프트 순서: B R B R B R(밴) → B R R B R B(픽) → R B R B(밴) → R B B R(픽)</p>
-        <p>© Local-only web app · Export/Import로 백업 가능</p>
+        <p>BO5 피어리스: 이전 판에서 밴/픽된 챔피언은 다음 판부터 밴/픽 불가 · Export/Import로 백업 가능</p>
       </div>
     </footer>
   </div>
@@ -68,8 +68,10 @@
     /**********************
      * Storage & Utilities
      **********************/
-    const APP_KEY = 'lol_mangmang_v1';
+    const APP_KEY = 'lol_mangmang_v2';
     const CHAMP_CACHE_KEY = 'lol_mangmang_champs_v1';
+
+    const SERIES = { bo: 5, winNeed: 3 };
 
     const uid = () => Math.random().toString(16).slice(2) + '-' + Date.now().toString(16);
     const nowISO = () => new Date().toISOString();
@@ -90,12 +92,10 @@
     function getChosung(str) {
       return (str || '').toString().split('').map(ch => {
         const code = ch.charCodeAt(0);
-        // Hangul syllables
         if (code >= 0xAC00 && code <= 0xD7A3) {
           const idx = Math.floor((code - 0xAC00) / 588);
           return CHOSUNG[idx] || '';
         }
-        // Hangul Jamo consonants (ㄱ-ㅎ)
         if (code >= 0x3131 && code <= 0x314E) return ch;
         return '';
       }).join('');
@@ -137,7 +137,7 @@
       const raw = localStorage.getItem(APP_KEY);
       if (!raw) {
         return {
-          version: 1,
+          version: 2,
           view: 'home',
           players: ['Blue1','Blue2','Blue3','Blue4','Blue5','Red1','Red2','Red3','Red4','Red5'],
           matches: [],
@@ -154,7 +154,7 @@
         return JSON.parse(raw);
       } catch {
         return loadAppState.__fallback || (loadAppState.__fallback = {
-          version: 1,
+          version: 2,
           view: 'home',
           players: [],
           matches: [],
@@ -167,8 +167,6 @@
     function saveAppState() {
       localStorage.setItem(APP_KEY, JSON.stringify(state));
     }
-
-    function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
 
     /**********************
      * Champion Data
@@ -203,11 +201,10 @@
       { id:'Ziggs', name:'Ziggs' },{ id:'Zilean', name:'Zilean' },{ id:'Zoe', name:'Zoe' },{ id:'Zyra', name:'Zyra' },
     ];
 
-    let champs = []; // {id,name}
+    let champs = [];
     let champVersion = '14.24.1';
 
     async function loadChampions() {
-      // 1) try cache
       const cached = localStorage.getItem(CHAMP_CACHE_KEY);
       if (cached) {
         try {
@@ -220,7 +217,6 @@
         } catch {}
       }
 
-      // 2) try fetch from Data Dragon (not Riot API auth; public static)
       try {
         const vRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json', { cache: 'no-store' });
         if (vRes.ok) {
@@ -235,7 +231,7 @@
         if (!list.length) throw new Error('empty champ list');
         champs = list.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
         localStorage.setItem(CHAMP_CACHE_KEY, JSON.stringify({ version: champVersion, champs }));
-      } catch (e) {
+      } catch {
         champs = fallbackChamps;
       }
     }
@@ -294,17 +290,7 @@
       const vis = Number(entry.vision || 0);
 
       let rating = Number(entry.rating);
-      if (!Number.isFinite(rating) || rating <= 0) {
-        const hasOld = entry && (entry.carry != null || entry.role != null || entry.draft != null);
-        if (hasOld) {
-          const carry = Number(entry.carry || 3);
-          const role = Number(entry.role || 3);
-          const draft = Number(entry.draft || 3);
-          rating = Math.round(((carry + role + draft) / 3) * 2);
-        } else {
-          rating = 7;
-        }
-      }
+      if (!Number.isFinite(rating) || rating <= 0) rating = 7;
       rating = clamp(rating, 1, 10);
 
       const objective = (k * 3 + a * 2 - d * 2) + (cs * 0.05) + (vis * 0.2);
@@ -325,10 +311,7 @@
     let state = loadAppState();
     const ui = {
       champQuery: '',
-      champMode: 'grid',
       showOnlyAvailable: false,
-      lastDraftTeamHint: 'AUTO',
-      // IME 조합 상태
       _isComposing: false,
       _skipNextChampQueryInput: false,
     };
@@ -355,15 +338,18 @@
 
     function createEmptyRatings(players) {
       const obj = {};
-      for (const p of players) {
-        obj[p] = { k:0,d:0,a:0,cs:0,vision:0, rating:7, comment:'' };
-      }
+      for (const p of players) obj[p] = { k:0,d:0,a:0,cs:0,vision:0, rating:7, comment:'' };
       return obj;
     }
 
-    function createNewMatch(preset) {
+    function createNewMatch(preset, opts = {}) {
+      const seriesId = opts.seriesId || uid();
+      const gameNo = Number(opts.gameNo || 1);
+
       const m = {
         id: uid(),
+        seriesId,
+        gameNo,
         createdAt: nowISO(),
         status: 'drafting',
         blue: { name: preset?.blueTeamName || 'BLUE', players: (preset?.bluePlayers || []).slice(0,5) },
@@ -373,6 +359,7 @@
         ratings: createEmptyRatings([...(preset?.bluePlayers||[]).slice(0,5), ...(preset?.redPlayers||[]).slice(0,5)]),
         potm: null,
       };
+
       state.matches.unshift(m);
       state.currentMatchId = m.id;
       state.lastTeamPreset = {
@@ -385,21 +372,68 @@
       return m;
     }
 
-    function sideToTeamName(match, side) {
-      return side === 'BLUE' ? match.blue.name : match.red.name;
+    function getSeriesMatches(seriesId) {
+      return (state.matches || [])
+        .filter(m => m.seriesId === seriesId)
+        .slice()
+        .sort((a,b) => (a.gameNo || 1) - (b.gameNo || 1) || (new Date(a.createdAt) - new Date(b.createdAt)));
     }
 
-    function getUsedChampsByTeamName(teamName, excludeMatchId = null) {
-      const used = new Set();
-      for (const m of state.matches) {
-        if (excludeMatchId && m.id === excludeMatchId) continue;
-        if (!m.draft?.picks) continue;
-        const tBlue = m.blue?.name;
-        const tRed = m.red?.name;
-        if (tBlue === teamName) for (const c of (m.draft.picks.BLUE || [])) used.add(c);
-        if (tRed === teamName) for (const c of (m.draft.picks.RED || [])) used.add(c);
+    function computeSeriesScore(seriesId) {
+      const ms = getSeriesMatches(seriesId);
+      let blueWins = 0;
+      let redWins = 0;
+      for (const m of ms) {
+        if (m.status !== 'completed') continue;
+        if (m.result?.winnerSide === 'BLUE') blueWins += 1;
+        if (m.result?.winnerSide === 'RED') redWins += 1;
       }
-      return used;
+      const finished = (blueWins >= SERIES.winNeed) || (redWins >= SERIES.winNeed) || (blueWins + redWins >= SERIES.bo);
+      return { blueWins, redWins, finished, played: blueWins + redWins, total: SERIES.bo };
+    }
+
+    function getSeriesLockedChampsBeforeMatch(match) {
+      const locked = new Set();
+      const gno = Number(match.gameNo || 1);
+      for (const m of state.matches) {
+        if (m.seriesId !== match.seriesId) continue;
+        const mn = Number(m.gameNo || 1);
+        if (mn >= gno) continue; // only previous games
+        for (const c of (m.draft?.bans?.BLUE || [])) locked.add(c);
+        for (const c of (m.draft?.bans?.RED  || [])) locked.add(c);
+        for (const c of (m.draft?.picks?.BLUE|| [])) locked.add(c);
+        for (const c of (m.draft?.picks?.RED || [])) locked.add(c);
+      }
+      return locked;
+    }
+
+    function startNextGame(currentMatch) {
+      const score = computeSeriesScore(currentMatch.seriesId);
+      if (score.finished) {
+        toast('시리즈가 이미 종료되었습니다. 새 시리즈를 시작하세요.');
+        return;
+      }
+      const nextNo = Math.min(SERIES.bo, (Number(currentMatch.gameNo || 1) + 1));
+      if (nextNo <= (Number(currentMatch.gameNo || 1))) {
+        toast('다음 판을 만들 수 없습니다.');
+        return;
+      }
+      const preset = {
+        blueTeamName: currentMatch.blue?.name || 'BLUE',
+        redTeamName: currentMatch.red?.name || 'RED',
+        bluePlayers: (currentMatch.blue?.players || []).slice(0,5),
+        redPlayers: (currentMatch.red?.players || []).slice(0,5),
+      };
+      const m = createNewMatch(preset, { seriesId: currentMatch.seriesId, gameNo: nextNo });
+      toast(`다음 판 생성: Game ${nextNo}/${SERIES.bo}`);
+      state.view = 'draft';
+      saveAppState();
+      render();
+      return m;
+    }
+
+    function sideToTeamName(match, side) {
+      return side === 'BLUE' ? match.blue.name : match.red.name;
     }
 
     function getAlreadyTakenInMatch(match) {
@@ -418,14 +452,14 @@
     function canSelectChamp(match, champId) {
       const step = draftStep(match);
       if (!step) return { ok:false, reason:'드래프트가 완료되었습니다.' };
+
       const taken = getAlreadyTakenInMatch(match);
       if (taken.has(champId)) return { ok:false, reason:'이미 밴/픽된 챔피언입니다.' };
 
-      if (step.type === 'pick') {
-        const teamName = sideToTeamName(match, step.side);
-        const used = getUsedChampsByTeamName(teamName, match.id);
-        if (used.has(champId)) return { ok:false, reason:`피어리스 룰: ${teamName} 팀은 이전 경기에서 사용한 챔피언을 재사용할 수 없습니다.` };
-      }
+      // BO5 피어리스(시리즈) 룰: 이전 판에서 밴/픽된 챔피언은 이후 판에서 밴/픽 불가
+      const locked = getSeriesLockedChampsBeforeMatch(match);
+      if (locked.has(champId)) return { ok:false, reason:'BO5 피어리스 룰: 이전 판에서 밴/픽된 챔피언은 다음 판부터 사용할 수 없습니다.' };
+
       return { ok:true };
     }
 
@@ -509,10 +543,39 @@
 
       match.status = 'completed';
       saveAppState();
-      toast(`경기 저장 완료! POTM: ${match.potm || '-'}`);
-      state.view = 'stats';
+
+      const score = computeSeriesScore(match.seriesId);
+      const scoreTxt = `${match.blue.name} ${score.blueWins} : ${score.redWins} ${match.red.name}`;
+      toast(`경기 저장 완료! POTM: ${match.potm || '-'} · 시리즈 ${scoreTxt}`);
+
+      // 시리즈가 끝났으면 통계로, 아니면 다음 판 안내를 위해 드래프트로 이동
+      if (score.finished) {
+        state.view = 'stats';
+      } else {
+        state.view = 'draft';
+      }
       saveAppState();
       render();
+
+      if (!score.finished && (match.gameNo || 1) < SERIES.bo) {
+        setTimeout(() => {
+          openModal({
+            title: `다음 판을 시작할까요? (Game ${Math.min(SERIES.bo, (Number(match.gameNo||1)+1))}/${SERIES.bo})`,
+            bodyHtml: `
+              <div class="text-sm text-slate-300">
+                이전 판에서 <span class="text-amber-200 font-extrabold">밴/픽된 챔피언</span>은 다음 판부터 자동으로 <span class="font-extrabold">LOCKED</span> 처리됩니다.
+              </div>
+              <div class="mt-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                시리즈 스코어: <span class="text-slate-100 font-bold">${escapeHtml(match.blue.name)}</span> ${score.blueWins} : ${score.redWins} <span class="text-slate-100 font-bold">${escapeHtml(match.red.name)}</span>
+              </div>
+            `,
+            footerHtml: `
+              <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">나중에</button>
+              <button data-action="nextGame" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">다음 판 생성</button>
+            `
+          });
+        }, 50);
+      }
     }
 
     /**********************
@@ -547,15 +610,21 @@
       const step = draftStep(match);
       const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
       const stepText = isDone ? '드래프트 완료' : `${match.draft.stepIndex+1}/${DRAFT_STEPS.length} · ${step.label} (${step.type.toUpperCase()})`;
-      const blueUsed = getUsedChampsByTeamName(match.blue.name, match.id);
-      const redUsed = getUsedChampsByTeamName(match.red.name, match.id);
+
+      const lockedPrev = getSeriesLockedChampsBeforeMatch(match);
+      const score = computeSeriesScore(match.seriesId);
+      const shortSeries = (match.seriesId || '').slice(0, 6);
+
+      const nextEnabled = (match.status === 'completed') && !score.finished && (Number(match.gameNo||1) < SERIES.bo);
 
       return `
         <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                ${badge('현재 매치', 'border-slate-700 text-slate-200')}
+                ${badge(`시리즈 ${shortSeries || '-'}`, 'border-slate-700 text-slate-200')}
+                ${badge(`BO${SERIES.bo} · Game ${match.gameNo || 1}/${SERIES.bo}`, 'border-slate-700 text-slate-200')}
+                ${badge(`${match.blue.name} ${score.blueWins} : ${score.redWins} ${match.red.name}`, 'border-amber-700 text-amber-200 bg-amber-950/30')}
                 ${match.status === 'drafting' ? badge('DRAFTING', 'border-sky-700 text-sky-200 bg-sky-950/30') : ''}
                 ${match.status === 'draftComplete' ? badge('DRAFT COMPLETE', 'border-emerald-700 text-emerald-200 bg-emerald-950/30') : ''}
                 ${match.status === 'completed' ? badge('COMPLETED', 'border-amber-700 text-amber-200 bg-amber-950/30') : ''}
@@ -563,11 +632,12 @@
               </div>
               <div class="mt-2 flex flex-col gap-1">
                 <div class="text-sm text-slate-300">진행: <span class="font-extrabold text-slate-100">${escapeHtml(stepText)}</span></div>
-                <div class="text-xs text-slate-500">피어리스 USED: <span class="text-sky-300 font-bold">${escapeHtml(match.blue.name)}</span> ${blueUsed.size}개 · <span class="text-rose-300 font-bold">${escapeHtml(match.red.name)}</span> ${redUsed.size}개</div>
+                <div class="text-xs text-slate-500">피어리스 LOCKED(이전 판 밴/픽): <span class="text-amber-200 font-extrabold">${lockedPrev.size}</span>개</div>
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 매치</button>
+              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
+              <button data-action="nextGame" class="px-3 py-2 rounded-xl ${nextEnabled ? 'bg-sky-700 hover:bg-sky-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${nextEnabled ? '' : 'disabled'}>다음 판</button>
               <button data-action="openSetup" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">팀/선수 설정</button>
               <button data-action="export" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Export</button>
               <button data-action="import" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Import</button>
@@ -586,8 +656,6 @@
       const color = isBlue ? 'sky' : 'rose';
       const titleBg = isBlue ? 'bg-sky-950/40 border-sky-900' : 'bg-rose-950/40 border-rose-900';
 
-      const usedSet = getUsedChampsByTeamName(team.name, match.id);
-
       const slot = (i, champId) => {
         if (!champId) return `
           <div class="flex items-center gap-2 p-2 rounded-xl border border-slate-800 bg-slate-950/20">
@@ -599,12 +667,11 @@
           </div>`;
 
         const champName = (champs.find(c=>c.id===champId)?.name) || champId;
-        const usedTag = usedSet.has(champId) ? `<span class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">USED</span>` : '';
         return `
           <div class="flex items-center gap-2 p-2 rounded-xl border border-slate-800 bg-slate-950/20">
             ${champAvatar(champId, 40)}
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-semibold text-slate-100 truncate">${escapeHtml(champName)} ${usedTag}</div>
+              <div class="text-sm font-semibold text-slate-100 truncate">${escapeHtml(champName)}</div>
               <div class="text-xs text-slate-500">${isBlue ? 'BLUE' : 'RED'} ${i+1}</div>
             </div>
             <button data-action="copyChamp" data-champ="${escapeHtml(champId)}" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs">복사</button>
@@ -651,7 +718,7 @@
             <div>
               <div class="flex items-center justify-between mb-2">
                 <h4 class="font-bold">픽 (${picks.length}/5)</h4>
-                <div class="text-xs text-slate-500">피어리스: 이전 경기에서 사용한 챔피언은 선택 불가</div>
+                <div class="text-xs text-slate-500">BO5 피어리스: 이전 판 밴/픽 챔피언은 LOCKED</div>
               </div>
               <div class="grid grid-cols-1 gap-2">
                 ${Array.from({length:5}).map((_,i)=>slot(i, picks[i])).join('')}
@@ -666,8 +733,7 @@
       const step = draftStep(match);
       const isDone = match.draft.stepIndex >= DRAFT_STEPS.length;
       const taken = getAlreadyTakenInMatch(match);
-      const teamName = step ? sideToTeamName(match, step.side) : null;
-      const used = (step && step.type === 'pick') ? getUsedChampsByTeamName(teamName, match.id) : new Set();
+      const lockedPrev = getSeriesLockedChampsBeforeMatch(match);
 
       const q = ui.champQuery;
       let list = champs;
@@ -676,7 +742,7 @@
       const isSelectable = (champId) => {
         if (!step) return false;
         if (taken.has(champId)) return false;
-        if (step.type === 'pick' && used.has(champId)) return false;
+        if (lockedPrev.has(champId)) return false;
         return true;
       };
 
@@ -692,9 +758,9 @@
                 <div class="text-lg font-extrabold">챔피언 선택</div>
                 ${step ? badge(`${step.label}`, step.side === 'BLUE' ? 'border-sky-700 text-sky-200 bg-sky-950/30' : 'border-rose-700 text-rose-200 bg-rose-950/30') : badge('완료', 'border-slate-700 text-slate-200')}
                 ${step ? badge(step.type.toUpperCase(), 'border-slate-700 text-slate-200') : ''}
-                ${step && step.type==='pick' ? badge(`피어리스 적용: ${teamName}`, 'border-amber-700 text-amber-200 bg-amber-950/30') : ''}
+                ${badge(`LOCKED: ${lockedPrev.size}`, 'border-amber-700 text-amber-200 bg-amber-950/30')}
               </div>
-              <p class="text-xs text-slate-400 mt-1">클릭하면 현재 단계에 바로 기록됩니다. (이미 밴/픽된 챔피언은 비활성화)</p>
+              <p class="text-xs text-slate-400 mt-1">클릭하면 현재 단계에 바로 기록됩니다. (LOCKED/TAKEN 챔피언은 비활성화)</p>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -706,7 +772,7 @@
 
           <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
             <div class="md:col-span-2">
-              <input data-input="champQuery" value="${escapeHtml(ui.champQuery)}" placeholder="챔피언 검색 (이름/ID)" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-600" />
+              <input data-input="champQuery" value="${escapeHtml(ui.champQuery)}" placeholder="챔피언 검색 (이름/ID/초성)" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-600" />
             </div>
             <label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm">
               <input type="checkbox" data-input="onlyAvailable" ${ui.showOnlyAvailable ? 'checked' : ''} />
@@ -716,8 +782,8 @@
 
           <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> 선택 가능</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-600"></span> 이미 밴/픽됨</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> USED(피어리스) - 현재 픽 팀 기준</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-600"></span> 이미 밴/픽됨(TAKEN)</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> 이전 판 밴/픽(LOCKED)</span>
           </div>
         </section>
       `;
@@ -732,13 +798,13 @@
           <div data-el="champList" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[520px] overflow-auto pr-1 scrollbar">
             ${list.map(c => {
               const takenFlag = taken.has(c.id);
-              const usedFlag = step && step.type==='pick' && used.has(c.id);
-              const selectable = step && !takenFlag && !(step.type==='pick' && usedFlag);
+              const lockedFlag = lockedPrev.has(c.id);
+              const selectable = step && !takenFlag && !lockedFlag;
               const ring = selectable ? 'ring-1 ring-emerald-500/40 hover:ring-emerald-400/60' : 'ring-1 ring-slate-700/50';
               const opacity = selectable ? '' : 'opacity-50';
               const cursor = selectable ? 'cursor-pointer' : 'cursor-not-allowed';
               const mark = takenFlag ? `<div class="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">TAKEN</div>` : '';
-              const usedMark = usedFlag ? `<div class="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">USED</div>` : '';
+              const lockedMark = lockedFlag ? `<div class="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">LOCKED</div>` : '';
 
               return `
                 <div class="relative flex items-center gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 ${ring} ${opacity} ${cursor}" data-action="pickChamp" data-champ="${escapeHtml(c.id)}" ${selectable ? '' : 'aria-disabled="true"'}>
@@ -747,7 +813,7 @@
                     <div class="text-sm font-semibold truncate">${escapeHtml(c.name)}</div>
                     <div class="text-[11px] text-slate-500 truncate">${escapeHtml(c.id)}</div>
                   </div>
-                  ${mark}${usedMark}
+                  ${mark}${lockedMark}
                 </div>
               `;
             }).join('')}
@@ -759,6 +825,9 @@
             <div class="mt-2 flex flex-col md:flex-row gap-2">
               <input data-input="manualChamp" placeholder="예: Ahri / LeeSin / CustomName" class="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-600" />
               <button data-action="pickManual" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">현재 단계에 기록</button>
+            </div>
+            <div class="mt-2 text-xs text-amber-200/90">
+              참고: 직접 입력도 BO5 피어리스 LOCKED 규칙이 적용됩니다.
             </div>
           </div>
         </section>
@@ -774,22 +843,26 @@
       const last = (state.matches || [])[0] || null;
 
       const primary = current
-        ? `<button data-action="homeContinue" class="px-4 py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 font-black">현재 매치 이어하기</button>`
+        ? `<button data-action="homeContinue" class="px-4 py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 font-black">현재 판 이어하기</button>`
         : `<button data-action="homeStart" class="px-4 py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 font-black">드래프트 시작</button>`;
 
-      const lastCard = last ? `
-        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-xs text-slate-500">최근 매치</div>
-              <div class="mt-1 font-black text-lg">${escapeHtml(last.blue?.name || 'BLUE')} <span class="text-slate-500">vs</span> ${escapeHtml(last.red?.name || 'RED')}</div>
-              <div class="mt-1 text-sm text-slate-300">상태: <span class="font-extrabold text-slate-100">${escapeHtml((last.status || '').toUpperCase() || '-')}</span> · 생성: <span class="text-slate-400">${escapeHtml(fmtDate(last.createdAt))}</span></div>
+      const lastCard = last ? (() => {
+        const score = computeSeriesScore(last.seriesId);
+        return `
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs text-slate-500">최근 기록</div>
+                <div class="mt-1 font-black text-lg">${escapeHtml(last.blue?.name || 'BLUE')} <span class="text-slate-500">vs</span> ${escapeHtml(last.red?.name || 'RED')}</div>
+                <div class="mt-1 text-sm text-slate-300">시리즈: <span class="text-amber-200 font-extrabold">${escapeHtml((last.seriesId||'').slice(0,6))}</span> · Game ${last.gameNo||1}/${SERIES.bo} · 스코어 ${last.blue?.name} ${score.blueWins}:${score.redWins} ${last.red?.name}</div>
+                <div class="mt-1 text-xs text-slate-500">상태: <span class="font-extrabold text-slate-100">${escapeHtml((last.status || '').toUpperCase() || '-')}</span> · 생성: <span class="text-slate-400">${escapeHtml(fmtDate(last.createdAt))}</span></div>
+              </div>
+              <button data-action="openMatch" data-id="${escapeHtml(last.id)}" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">열기</button>
             </div>
-            <button data-action="openMatch" data-id="${escapeHtml(last.id)}" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">열기</button>
           </div>
-        </div>
-      ` : `
-        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500">최근 매치가 없습니다. "드래프트 시작"으로 첫 경기를 만들어보세요.</div>
+        `;
+      })() : `
+        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500">최근 기록이 없습니다. "드래프트 시작"으로 첫 시리즈를 만들어보세요.</div>
       `;
 
       return `
@@ -798,12 +871,12 @@
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <div class="text-2xl font-black tracking-tight">홈</div>
-                <div class="mt-2 text-sm text-slate-400">피어리스 드래프트 → 경기 입력 → POTM/랭킹까지 한 번에 관리합니다.</div>
-                <div class="mt-2 text-xs text-slate-500">현재 데이터: 전체 ${totalCount}경기 · 완료 ${completedCount}경기</div>
+                <div class="mt-2 text-sm text-slate-400">BO5 피어리스 드래프트(이전 판 밴/픽 = LOCKED) → 경기 입력 → POTM/랭킹까지 한 번에 관리합니다.</div>
+                <div class="mt-2 text-xs text-slate-500">현재 데이터: 전체 ${totalCount}판 · 완료 ${completedCount}판</div>
               </div>
               <div class="flex flex-wrap gap-2">
                 ${primary}
-                <button data-action="homeNewMatch" class="px-4 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-600 font-black">새 매치 만들기</button>
+                <button data-action="homeNewMatch" class="px-4 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-600 font-black">새 시리즈 만들기</button>
                 <button data-action="homeSettings" class="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold">설정(선수/팀)</button>
               </div>
             </div>
@@ -817,8 +890,8 @@
                 <div class="mt-1 text-xs text-slate-500">설정에서 선수 목록과 기본 팀 프리셋을 등록</div>
               </div>
               <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                <div class="text-sm font-black">2) 밴픽 진행</div>
-                <div class="mt-1 text-xs text-slate-500">앱이 단계(밴/픽)를 자동 안내 · 피어리스 USED 표시</div>
+                <div class="text-sm font-black">2) 밴픽 진행(BO5)</div>
+                <div class="mt-1 text-xs text-slate-500">이전 판에서 밴/픽된 챔피언은 다음 판부터 자동 LOCKED</div>
               </div>
               <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
                 <div class="text-sm font-black">3) 경기 입력 & POTM</div>
@@ -829,7 +902,7 @@
 
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <div class="flex items-center justify-between">
-              <div class="font-extrabold">최근/현재 매치</div>
+              <div class="font-extrabold">최근/현재</div>
               <div class="flex gap-2">
                 <button data-action="homeHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
                 <button data-action="homeStats" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">랭킹</button>
@@ -890,9 +963,9 @@
             <div>
               <div class="flex flex-wrap items-center gap-2">
                 <div class="text-lg font-extrabold">경기 평점 & POTM</div>
-                ${match.status === 'completed' ? badge('COMPLETED', 'border-amber-700 text-amber-200 bg-amber-950/30') : badge(match.status.toUpperCase(), 'border-slate-700 text-slate-200')}
+                ${match.status === 'completed' ? badge('COMPLETED', 'border-amber-700 text-amber-200 bg-amber-950/30') : badge((match.status||'').toUpperCase(), 'border-slate-700 text-slate-200')}
               </div>
-              <div class="mt-2 text-sm text-slate-300">매치: <span class="font-extrabold text-slate-100">${escapeHtml(match.blue.name)}</span> vs <span class="font-extrabold text-slate-100">${escapeHtml(match.red.name)}</span></div>
+              <div class="mt-2 text-sm text-slate-300">Game ${match.gameNo||1}/${SERIES.bo} · 매치: <span class="font-extrabold text-slate-100">${escapeHtml(match.blue.name)}</span> vs <span class="font-extrabold text-slate-100">${escapeHtml(match.red.name)}</span></div>
               <div class="mt-1 text-xs text-slate-500">POTM 미리보기(현재 입력 기준): <span class="font-extrabold text-amber-200">${escapeHtml(potmPreview || '-')}</span> (${potmScore ?? 0})</div>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -1140,10 +1213,10 @@
             <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <div class="text-lg font-extrabold">MVP 랭킹 (평균 Total Score)</div>
-                <div class="text-xs text-slate-500 mt-1">완료된 경기: ${completedCount}개 · 1위 👑 / 꼴등 💀</div>
+                <div class="text-xs text-slate-500 mt-1">완료된 판: ${completedCount}개 · 1위 👑 / 꼴등 💀</div>
               </div>
               <div class="flex flex-wrap gap-2">
-                <button data-action="goReport" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">현재 매치 평점</button>
+                <button data-action="goReport" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">현재 판 평점</button>
                 <button data-action="goHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
               </div>
             </div>
@@ -1171,7 +1244,7 @@
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="font-extrabold">팁</div>
             <ul class="mt-2 text-sm text-slate-400 list-disc pl-5">
-              <li>피어리스 USED는 "팀 이름" 기준으로 누적됩니다. (팀 이름을 바꾸면 별개 팀으로 인식)</li>
+              <li>BO5 피어리스는 <span class="text-amber-200 font-bold">시리즈(Series ID)</span> 기준으로 누적됩니다. 새 시리즈를 만들면 LOCKED가 초기화됩니다.</li>
               <li>Export/Import로 다른 PC로 옮기거나 백업할 수 있습니다.</li>
             </ul>
           </section>
@@ -1186,15 +1259,18 @@
         const statusColor = m.status === 'completed' ? 'border-amber-700 text-amber-200 bg-amber-950/30'
                           : m.status === 'draftComplete' ? 'border-emerald-700 text-emerald-200 bg-emerald-950/30'
                           : 'border-sky-700 text-sky-200 bg-sky-950/30';
+        const score = computeSeriesScore(m.seriesId);
         return `
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   ${badge(m.status.toUpperCase(), statusColor)}
+                  ${badge(`S:${(m.seriesId||'').slice(0,6)} · G${m.gameNo||1}/${SERIES.bo}`, 'border-slate-700 text-slate-200')}
                   <span class="text-xs text-slate-500">${escapeHtml(fmtDate(m.createdAt))}</span>
                 </div>
                 <div class="mt-2 font-black text-lg truncate">${escapeHtml(m.blue.name)} <span class="text-slate-500">vs</span> ${escapeHtml(m.red.name)}</div>
+                <div class="mt-1 text-sm text-slate-300">시리즈 스코어(완료 기준): <span class="font-extrabold text-amber-200">${escapeHtml(m.blue.name)} ${score.blueWins} : ${score.redWins} ${escapeHtml(m.red.name)}</span></div>
                 <div class="mt-1 text-sm text-slate-300">승리: <span class="font-extrabold text-slate-100">${escapeHtml(winner)}</span> · POTM: <span class="font-extrabold text-amber-200">${escapeHtml(potm)}</span></div>
               </div>
               <div class="flex flex-wrap gap-2">
@@ -1225,10 +1301,10 @@
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-lg font-extrabold">경기 히스토리</div>
-                <div class="text-xs text-slate-500 mt-1">클릭해서 과거 매치를 불러오거나 상세를 확인하세요.</div>
+                <div class="text-xs text-slate-500 mt-1">각 기록은 "한 판"이며, 동일 Series ID로 BO5를 묶습니다.</div>
               </div>
               <div class="flex gap-2">
-                <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 매치</button>
+                <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
               </div>
             </div>
           </section>
@@ -1268,7 +1344,7 @@
 
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="text-lg font-extrabold">설정</div>
-            <p class="text-xs text-slate-500 mt-1">선수 목록과 기본 팀 프리셋(새 매치 생성 시 자동 적용)을 관리합니다.</p>
+            <p class="text-xs text-slate-500 mt-1">선수 목록과 기본 팀 프리셋(새 시리즈 생성 시 자동 적용)을 관리합니다.</p>
           </section>
 
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
@@ -1288,7 +1364,7 @@
 
           <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div class="font-extrabold">기본 팀 프리셋</div>
-            <p class="text-xs text-slate-500 mt-1">"새 매치"를 누르면 아래 설정이 자동으로 들어갑니다.</p>
+            <p class="text-xs text-slate-500 mt-1">"새 시리즈"를 누르면 아래 설정이 자동으로 들어갑니다.</p>
 
             <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -1319,8 +1395,8 @@
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
-              <button data-action="applyPresetToCurrent" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">현재 매치에 적용</button>
-              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">프리셋으로 새 매치</button>
+              <button data-action="applyPresetToCurrent" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">현재 판에 적용</button>
+              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">프리셋으로 새 시리즈</button>
             </div>
           </section>
         </div>
@@ -1329,7 +1405,7 @@
 
     function render() {
       const app = document.getElementById('app');
-      const view = state.view || 'draft';
+      const view = state.view || 'home';
       document.querySelectorAll('.navBtn').forEach(btn => {
         const active = btn.getAttribute('data-nav') === view;
         btn.classList.toggle('bg-sky-700', active);
@@ -1348,35 +1424,6 @@
       syncPlayerDatalist();
     }
 
-    // Preserve focus/selection/scroll when re-rendering
-    function renderPreserveFocus() {
-      const active = document.activeElement;
-      const activeKey = active?.getAttribute?.('data-input') || active?.getAttribute?.('data-action') || '';
-      const selection = (active && typeof active.selectionStart === 'number')
-        ? { start: active.selectionStart, end: active.selectionEnd }
-        : null;
-
-      const champList = document.querySelector('[data-el="champList"]');
-      const champListScrollTop = champList ? champList.scrollTop : 0;
-
-      render();
-
-      const champList2 = document.querySelector('[data-el="champList"]');
-      if (champList2) champList2.scrollTop = champListScrollTop;
-
-      let target = null;
-      if (activeKey) {
-        target = document.querySelector(`[data-input="${CSS.escape(activeKey)}"]`) || document.querySelector(`[data-action="${CSS.escape(activeKey)}"]`);
-      }
-      if (!target && active?.id) target = document.getElementById(active.id);
-      if (target && target.focus) {
-        target.focus({ preventScroll: true });
-        if (selection && typeof target.selectionStart === 'number') {
-          try { target.setSelectionRange(selection.start, selection.end); } catch {}
-        }
-      }
-    }
-
     // Champion picker partial update: updates list/count only, never replaces the search input element.
     function updateChampionPickerPartial() {
       if ((state.view || 'draft') !== 'draft') return;
@@ -1385,8 +1432,7 @@
 
       const step = draftStep(match);
       const taken = getAlreadyTakenInMatch(match);
-      const teamName = step ? sideToTeamName(match, step.side) : null;
-      const used = (step && step.type === 'pick') ? getUsedChampsByTeamName(teamName, match.id) : new Set();
+      const lockedPrev = getSeriesLockedChampsBeforeMatch(match);
 
       const q = ui.champQuery;
       let list = champs;
@@ -1395,7 +1441,7 @@
       const isSelectable = (champId) => {
         if (!step) return false;
         if (taken.has(champId)) return false;
-        if (step.type === 'pick' && used.has(champId)) return false;
+        if (lockedPrev.has(champId)) return false;
         return true;
       };
 
@@ -1410,13 +1456,13 @@
 
       listEl.innerHTML = list.map(c => {
         const takenFlag = taken.has(c.id);
-        const usedFlag = step && step.type==='pick' && used.has(c.id);
-        const selectable = step && !takenFlag && !(step.type==='pick' && usedFlag);
+        const lockedFlag = lockedPrev.has(c.id);
+        const selectable = step && !takenFlag && !lockedFlag;
         const ring = selectable ? 'ring-1 ring-emerald-500/40 hover:ring-emerald-400/60' : 'ring-1 ring-slate-700/50';
         const opacity = selectable ? '' : 'opacity-50';
         const cursor = selectable ? 'cursor-pointer' : 'cursor-not-allowed';
         const mark = takenFlag ? `<div class="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">TAKEN</div>` : '';
-        const usedMark = usedFlag ? `<div class="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">USED</div>` : '';
+        const lockedMark = lockedFlag ? `<div class="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-200 font-extrabold">LOCKED</div>` : '';
 
         return `
           <div class="relative flex items-center gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 ${ring} ${opacity} ${cursor}" data-action="pickChamp" data-champ="${escapeHtml(c.id)}" ${selectable ? '' : 'aria-disabled="true"'}>
@@ -1425,7 +1471,7 @@
               <div class="text-sm font-semibold truncate">${escapeHtml(c.name)}</div>
               <div class="text-[11px] text-slate-500 truncate">${escapeHtml(c.id)}</div>
             </div>
-            ${mark}${usedMark}
+            ${mark}${lockedMark}
           </div>
         `;
       }).join('');
@@ -1437,8 +1483,6 @@
      * Setup Modal
      **********************/
     function openSetupModal(match) {
-      const players = (state.players || []).slice().sort((a,b)=>a.localeCompare(b,'ko'));
-
       const playerSel = (side, idx, selected) => `
         <label class="text-xs text-slate-400">
           ${side} ${idx+1}
@@ -1456,7 +1500,7 @@
 
       const body = `
         <div class="grid grid-cols-1 gap-4">
-          <div class="text-sm text-slate-300">팀 이름과 선수(최대 5명)를 설정하세요. 피어리스 USED는 <span class="font-extrabold text-amber-200">팀 이름</span> 기준으로 누적됩니다.</div>
+          <div class="text-sm text-slate-300">팀 이름과 선수(최대 5명)를 설정하세요. BO5 피어리스 LOCKED는 <span class="font-extrabold text-amber-200">같은 시리즈</span>의 이전 판 밴/픽 기준입니다.</div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -1549,8 +1593,21 @@
       if (action === 'newMatch') {
         const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
         createNewMatch(preset);
-        toast('새 매치를 생성했습니다.');
+        toast('새 시리즈를 생성했습니다.');
+        state.view = 'draft';
+        saveAppState();
         render();
+        return;
+      }
+
+      if (action === 'nextGame') {
+        const m = ensureCurrentMatch();
+        if (m.status !== 'completed') {
+          toast('현재 판이 아직 완료되지 않았습니다. (경기 저장 후 다음 판 생성 가능)');
+          return;
+        }
+        closeModal();
+        startNextGame(m);
         return;
       }
 
@@ -1574,7 +1631,7 @@
         createNewMatch(preset);
         state.view = 'draft';
         saveAppState();
-        toast('새 매치를 생성했습니다.');
+        toast('새 시리즈를 생성했습니다.');
         render();
         return;
       }
@@ -1630,7 +1687,7 @@
         if (!match) return;
         openModal({
           title: '드래프트 초기화',
-          bodyHtml: `<p class="text-sm text-slate-300">현재 매치의 밴/픽 기록을 모두 초기화할까요?</p>`,
+          bodyHtml: `<p class="text-sm text-slate-300">현재 판의 밴/픽 기록을 모두 초기화할까요?</p>`,
           footerHtml: `
             <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
             <button data-action="resetDraftConfirm" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">초기화</button>
@@ -1675,14 +1732,14 @@
       if (action === 'fillDemo') {
         if (!match) return;
         const player = btn.getAttribute('data-player');
-        const e = match.ratings[player] || {};
-        e.k = clamp(Math.floor(Math.random()*18), 0, 25);
-        e.d = clamp(Math.floor(Math.random()*12), 0, 20);
-        e.a = clamp(Math.floor(Math.random()*22), 0, 35);
-        e.cs = clamp(Math.floor(100 + Math.random()*250), 0, 500);
-        e.vision = clamp(Math.floor(10 + Math.random()*60), 0, 150);
-        e.rating = clamp(1 + Math.floor(Math.random()*10), 1, 10);
-        match.ratings[player] = e;
+        const e0 = match.ratings[player] || {};
+        e0.k = clamp(Math.floor(Math.random()*18), 0, 25);
+        e0.d = clamp(Math.floor(Math.random()*12), 0, 20);
+        e0.a = clamp(Math.floor(Math.random()*22), 0, 35);
+        e0.cs = clamp(Math.floor(100 + Math.random()*250), 0, 500);
+        e0.vision = clamp(Math.floor(10 + Math.random()*60), 0, 150);
+        e0.rating = clamp(1 + Math.floor(Math.random()*10), 1, 10);
+        match.ratings[player] = e0;
         saveAppState();
         render();
         return;
@@ -1692,7 +1749,7 @@
         const id = btn.getAttribute('data-id');
         state.currentMatchId = id;
         saveAppState();
-        toast('매치를 불러왔습니다.');
+        toast('기록을 불러왔습니다.');
         state.view = 'draft';
         saveAppState();
         render();
@@ -1708,7 +1765,8 @@
           <div class="grid grid-cols-1 gap-3">
             <div class="text-sm text-slate-300"><span class="font-bold">${escapeHtml(fmtDate(m.createdAt))}</span> · 상태: <span class="font-extrabold">${escapeHtml(m.status)}</span></div>
             <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
-              <div class="font-black">${escapeHtml(m.blue.name)} vs ${escapeHtml(m.red.name)}</div>
+              <div class="font-black">S:${escapeHtml((m.seriesId||'').slice(0,6))} · Game ${m.gameNo||1}/${SERIES.bo}</div>
+              <div class="mt-1 font-black">${escapeHtml(m.blue.name)} vs ${escapeHtml(m.red.name)}</div>
               <div class="mt-1 text-sm text-slate-400">승리: <span class="text-slate-100 font-extrabold">${escapeHtml(winner)}</span> · POTM: <span class="text-amber-200 font-extrabold">${escapeHtml(m.potm||'-')}</span></div>
               <div class="mt-2 text-xs text-slate-500">메모: ${escapeHtml(m.result?.notes||'')}</div>
             </div>
@@ -1746,8 +1804,8 @@
       if (action === 'deleteMatch') {
         const id = btn.getAttribute('data-id');
         openModal({
-          title: '경기 삭제',
-          bodyHtml: `<p class="text-sm text-slate-300">이 경기를 삭제할까요? (되돌릴 수 없음)</p>`,
+          title: '기록 삭제',
+          bodyHtml: `<p class="text-sm text-slate-300">이 판 기록을 삭제할까요? (되돌릴 수 없음)</p>`,
           footerHtml: `
             <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
             <button data-action="deleteMatchConfirm" data-id="${escapeHtml(id)}" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">삭제</button>
@@ -1762,7 +1820,7 @@
         if (state.currentMatchId === id) state.currentMatchId = state.matches[0]?.id || null;
         saveAppState();
         closeModal();
-        toast('경기를 삭제했습니다.');
+        toast('기록을 삭제했습니다.');
         render();
         return;
       }
@@ -1788,7 +1846,7 @@
           closeModal();
           toast('Import 완료!');
           render();
-        } catch (err) {
+        } catch {
           toast('Import 실패: JSON 형식을 확인하세요.');
         }
         return;
@@ -1826,7 +1884,7 @@
         m.red.players = (p.redPlayers || []).slice(0,5);
         m.ratings = createEmptyRatings([...(m.blue.players||[]), ...(m.red.players||[])]);
         saveAppState();
-        toast('현재 매치에 프리셋 적용 완료');
+        toast('현재 판에 프리셋 적용 완료');
         render();
         return;
       }
@@ -1834,7 +1892,7 @@
       if (action === 'resetAll') {
         openModal({
           title: '전체 초기화',
-          bodyHtml: `<p class="text-sm text-slate-300">모든 경기/설정 데이터를 삭제할까요? (되돌릴 수 없음)</p>`,
+          bodyHtml: `<p class="text-sm text-slate-300">모든 기록/설정 데이터를 삭제할까요? (되돌릴 수 없음)</p>`,
           footerHtml: `
             <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">취소</button>
             <button data-action="resetAllConfirm" class="px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 font-bold">초기화</button>
@@ -1857,9 +1915,7 @@
     // IME(한글) 조합 입력 이벤트 처리
     document.addEventListener('compositionstart', (e) => {
       const t = e.target;
-      if (t && t.matches && t.matches('[data-input="champQuery"]')) {
-        ui._isComposing = true;
-      }
+      if (t && t.matches && t.matches('[data-input="champQuery"]')) ui._isComposing = true;
     });
 
     document.addEventListener('compositionend', (e) => {
@@ -1868,7 +1924,6 @@
         ui._isComposing = false;
         ui.champQuery = t.value;
         ui._skipNextChampQueryInput = true;
-        // IMPORTANT: do not re-render here. Only update list area.
         updateChampionPickerPartial();
       }
     });
@@ -1878,15 +1933,11 @@
 
       if (t.matches('[data-input="champQuery"]')) {
         ui.champQuery = t.value;
-        // Some browsers fire an extra input right after compositionend
         if (ui._skipNextChampQueryInput) {
           ui._skipNextChampQueryInput = false;
-          // still update list just in case
           updateChampionPickerPartial();
           return;
         }
-        // IMPORTANT: never re-render the whole draft screen on each keystroke.
-        // Only update champion list/count so IME doesn't break ("가레ㄴ" issue).
         updateChampionPickerPartial();
         return;
       }
@@ -1993,10 +2044,27 @@
     });
 
     /**********************
-     * Init
+     * Init + migration
      **********************/
     (async function init() {
       await loadChampions();
+
+      // migrate old data (if any): ensure seriesId/gameNo exist
+      if (Array.isArray(state.matches)) {
+        for (const m of state.matches) {
+          if (!m.seriesId) m.seriesId = m.id;
+          if (!m.gameNo) m.gameNo = 1;
+          if (!m.draft) m.draft = { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } };
+          if (!m.result) m.result = { winnerSide: null, notes: '' };
+          if (!m.blue) m.blue = { name:'BLUE', players:[] };
+          if (!m.red) m.red = { name:'RED', players:[] };
+          if (!m.ratings) {
+            const allPlayers = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
+            m.ratings = createEmptyRatings(allPlayers);
+          }
+          if (!m.status) m.status = 'drafting';
+        }
+      }
 
       if (!Array.isArray(state.matches) || state.matches.length === 0) {
         state.view = 'home';
@@ -2004,13 +2072,6 @@
         state.view = 'home';
       }
 
-      if (state.currentMatchId) {
-        const m = getCurrentMatch();
-        if (m) {
-          m.blue.players = (m.blue.players || []).slice(0,5);
-          m.red.players = (m.red.players || []).slice(0,5);
-        }
-      }
       saveAppState();
       render();
     })();
