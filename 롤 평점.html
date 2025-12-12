@@ -241,14 +241,12 @@
     }
 
     function champImgUrl(champId) {
-      // Some IDs include apostrophes/spaces in display name but id is safe (e.g., MonkeyKing for Wukong in some versions)
       return `https://ddragon.leagueoflegends.com/cdn/${champVersion}/img/champion/${champId}.png`;
     }
 
     function champAvatar(champId, size = 48) {
       const c = champs.find(x => x.id === champId);
       const label = c?.name || champId;
-      // image with fallback initials
       const initials = label.split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase();
       const bg = 'bg-slate-800';
       return `
@@ -263,29 +261,22 @@
      * Draft Order
      **********************/
     const DRAFT_STEPS = [
-      // Ban phase 1 (alternate: B R B R B R)
       { type:'ban', side:'BLUE', label:'BLUE 밴 1' },
       { type:'ban', side:'RED',  label:'RED 밴 1' },
       { type:'ban', side:'BLUE', label:'BLUE 밴 2' },
       { type:'ban', side:'RED',  label:'RED 밴 2' },
       { type:'ban', side:'BLUE', label:'BLUE 밴 3' },
       { type:'ban', side:'RED',  label:'RED 밴 3' },
-
-      // Pick phase 1: B / R R / B / R / B
       { type:'pick', side:'BLUE', label:'BLUE 픽 1' },
       { type:'pick', side:'RED',  label:'RED 픽 1' },
       { type:'pick', side:'RED',  label:'RED 픽 2' },
       { type:'pick', side:'BLUE', label:'BLUE 픽 2' },
       { type:'pick', side:'RED',  label:'RED 픽 3' },
       { type:'pick', side:'BLUE', label:'BLUE 픽 3' },
-
-      // Ban phase 2 (alternate: R B R B)
       { type:'ban', side:'RED',  label:'RED 밴 4' },
       { type:'ban', side:'BLUE', label:'BLUE 밴 4' },
       { type:'ban', side:'RED',  label:'RED 밴 5' },
       { type:'ban', side:'BLUE', label:'BLUE 밴 5' },
-
-      // Pick phase 2: R / B B / R
       { type:'pick', side:'RED',  label:'RED 픽 4' },
       { type:'pick', side:'BLUE', label:'BLUE 픽 4' },
       { type:'pick', side:'BLUE', label:'BLUE 픽 5' },
@@ -302,30 +293,22 @@
       const cs = Number(entry.cs || 0);
       const vis = Number(entry.vision || 0);
 
-      // New: single rating (1~10)
       let rating = Number(entry.rating);
-
-      // Backward compatibility: if old fields exist but rating is missing, approximate rating.
       if (!Number.isFinite(rating) || rating <= 0) {
         const hasOld = entry && (entry.carry != null || entry.role != null || entry.draft != null);
         if (hasOld) {
           const carry = Number(entry.carry || 3);
           const role = Number(entry.role || 3);
           const draft = Number(entry.draft || 3);
-          rating = Math.round(((carry + role + draft) / 3) * 2); // 1~5 -> 2~10
+          rating = Math.round(((carry + role + draft) / 3) * 2);
         } else {
           rating = 7;
         }
       }
       rating = clamp(rating, 1, 10);
 
-      // Objective: intuitive weighted sum
       const objective = (k * 3 + a * 2 - d * 2) + (cs * 0.05) + (vis * 0.2);
-
-      // Rating score (0~100 scale)
       const subjective = rating * 10;
-
-      // Total: Objective(70%) + Rating(30%)
       const total = objective * 0.7 + subjective * 0.3;
 
       return {
@@ -345,7 +328,7 @@
       champMode: 'grid',
       showOnlyAvailable: false,
       lastDraftTeamHint: 'AUTO',
-      // IME(한글) 조합 입력 중 리렌더로 인해 입력이 끊기는 문제 방지용
+      // IME 조합 상태
       _isComposing: false,
       _skipNextChampQueryInput: false,
     };
@@ -362,7 +345,6 @@
     function ensureCurrentMatch() {
       let m = getCurrentMatch();
       if (!m) {
-        // auto-create a match if none exists
         const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
         m = createNewMatch(preset);
         state.currentMatchId = m.id;
@@ -374,11 +356,7 @@
     function createEmptyRatings(players) {
       const obj = {};
       for (const p of players) {
-        obj[p] = {
-          k: 0, d: 0, a: 0, cs: 0, vision: 0,
-          rating: 7, // 1~10
-          comment: ''
-        };
+        obj[p] = { k:0,d:0,a:0,cs:0,vision:0, rating:7, comment:'' };
       }
       return obj;
     }
@@ -388,24 +366,10 @@
         id: uid(),
         createdAt: nowISO(),
         status: 'drafting',
-        blue: {
-          name: preset?.blueTeamName || 'BLUE',
-          players: (preset?.bluePlayers || []).slice(0,5),
-        },
-        red: {
-          name: preset?.redTeamName || 'RED',
-          players: (preset?.redPlayers || []).slice(0,5),
-        },
-        draft: {
-          stepIndex: 0,
-          actions: [], // {type, side, teamName, champId}
-          bans: { BLUE: [], RED: [] },
-          picks: { BLUE: [], RED: [] },
-        },
-        result: {
-          winnerSide: null, // 'BLUE'|'RED'
-          notes: '',
-        },
+        blue: { name: preset?.blueTeamName || 'BLUE', players: (preset?.bluePlayers || []).slice(0,5) },
+        red:  { name: preset?.redTeamName  || 'RED',  players: (preset?.redPlayers  || []).slice(0,5) },
+        draft: { stepIndex: 0, actions: [], bans: { BLUE: [], RED: [] }, picks: { BLUE: [], RED: [] } },
+        result: { winnerSide: null, notes: '' },
         ratings: createEmptyRatings([...(preset?.bluePlayers||[]).slice(0,5), ...(preset?.redPlayers||[]).slice(0,5)]),
         potm: null,
       };
@@ -469,19 +433,10 @@
       const step = draftStep(match);
       if (!step) return;
       const allow = canSelectChamp(match, champId);
-      if (!allow.ok) {
-        toast(allow.reason);
-        return;
-      }
+      if (!allow.ok) { toast(allow.reason); return; }
 
       const teamName = sideToTeamName(match, step.side);
-      match.draft.actions.push({
-        type: step.type,
-        side: step.side,
-        teamName,
-        champId,
-        at: nowISO(),
-      });
+      match.draft.actions.push({ type: step.type, side: step.side, teamName, champId, at: nowISO() });
 
       if (step.type === 'ban') match.draft.bans[step.side].push(champId);
       if (step.type === 'pick') match.draft.picks[step.side].push(champId);
@@ -495,7 +450,6 @@
       const last = match.draft.actions.pop();
       if (!last) return;
       const arr = last.type === 'ban' ? match.draft.bans[last.side] : match.draft.picks[last.side];
-      // remove last occurrence
       const idx = arr.lastIndexOf(last.champId);
       if (idx >= 0) arr.splice(idx, 1);
       match.draft.stepIndex = Math.max(0, match.draft.stepIndex - 1);
@@ -517,18 +471,14 @@
         return;
       }
       match.status = 'draftComplete';
-      // ensure ratings exist for players
       const allPlayers = [...match.blue.players, ...match.red.players].filter(Boolean);
       match.ratings = match.ratings || {};
       for (const p of allPlayers) {
         if (!match.ratings[p]) {
-          match.ratings[p] = { k:0,d:0,a:0,cs:0,vision:0, rating: 7, comment:'' };
+          match.ratings[p] = { k:0,d:0,a:0,cs:0,vision:0, rating:7, comment:'' };
         } else {
-          // migrate old fields -> rating if needed
           const r = Number(match.ratings[p].rating);
-          if (!Number.isFinite(r) || r <= 0) {
-            match.ratings[p].rating = computeScores(match.ratings[p]).rating;
-          }
+          if (!Number.isFinite(r) || r <= 0) match.ratings[p].rating = computeScores(match.ratings[p]).rating;
         }
       }
       saveAppState();
@@ -539,7 +489,6 @@
     }
 
     function completeMatch(match) {
-      // compute potm
       const allPlayers = [...match.blue.players, ...match.red.players].filter(Boolean);
       let best = null;
       for (const p of allPlayers) {
@@ -928,7 +877,6 @@
         `;
       };
 
-      // compute current POTM preview
       let potmPreview = null;
       let potmScore = null;
       for (const p of allPlayers) {
@@ -979,12 +927,7 @@
       const playerCard = (player, side) => {
         const eRaw = match.ratings?.[player] || {};
         const sc0 = computeScores(eRaw);
-        const e = {
-          k: 0, d: 0, a: 0, cs: 0, vision: 0,
-          rating: sc0.rating,
-          comment: '',
-          ...eRaw,
-        };
+        const e = { k:0,d:0,a:0,cs:0,vision:0, rating: sc0.rating, comment:'', ...eRaw };
 
         const sc = computeScores(e);
         const color = side === 'BLUE' ? 'sky' : 'rose';
@@ -1037,7 +980,6 @@
       const blueCards = (match.blue.players||[]).filter(Boolean).map(p=>playerCard(p,'BLUE')).join('');
       const redCards = (match.red.players||[]).filter(Boolean).map(p=>playerCard(p,'RED')).join('');
 
-      // Draft global order map: champId -> overall action index (1~20)
       const seqByChamp = {};
       (match.draft?.actions || []).forEach((a, i) => {
         if (a?.champId) seqByChamp[a.champId] = i + 1;
@@ -1131,7 +1073,7 @@
     }
 
     function computePlayerAggregates() {
-      const agg = new Map(); // player -> {sumTotal,sumObj,sumSub,matches,potm}
+      const agg = new Map();
       for (const m of state.matches) {
         if (m.status !== 'completed') continue;
         const players = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
@@ -1172,7 +1114,6 @@
         const isFirst = r.player === first;
         const isLast = r.player === last;
         const icon = isFirst ? '👑' : (isLast ? '💀' : '');
-        const hi = isFirst ? 'bg-amber-600/10 border-amber-500/30' : (isLast ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-950/30 border-slate-800');
         return `
           <tr class="border-b border-slate-800">
             <td class="px-3 py-2 text-sm font-bold">${idx+1}</td>
@@ -1404,11 +1345,10 @@
       else if (view === 'settings') app.innerHTML = renderSettingsView();
       else app.innerHTML = renderHomeView();
 
-      // keep datalist in sync for all player-name inputs
       syncPlayerDatalist();
     }
 
-    // Preserve focus/selection/scroll when re-rendering (important for fast typing in search)
+    // Preserve focus/selection/scroll when re-rendering
     function renderPreserveFocus() {
       const active = document.activeElement;
       const activeKey = active?.getAttribute?.('data-input') || active?.getAttribute?.('data-action') || '';
@@ -1421,11 +1361,9 @@
 
       render();
 
-      // restore champ list scroll
       const champList2 = document.querySelector('[data-el="champList"]');
       if (champList2) champList2.scrollTop = champListScrollTop;
 
-      // restore focus to the same logical input
       let target = null;
       if (activeKey) {
         target = document.querySelector(`[data-input="${CSS.escape(activeKey)}"]`) || document.querySelector(`[data-action="${CSS.escape(activeKey)}"]`);
@@ -1439,7 +1377,7 @@
       }
     }
 
-    // Partial update to avoid full re-render during IME typing (fixes Korean final consonant jumping)
+    // Champion picker partial update: updates list/count only, never replaces the search input element.
     function updateChampionPickerPartial() {
       if ((state.view || 'draft') !== 'draft') return;
       const match = getCurrentMatch();
@@ -1460,13 +1398,12 @@
         if (step.type === 'pick' && used.has(champId)) return false;
         return true;
       };
+
       if (ui.showOnlyAvailable && step) list = list.filter(c => isSelectable(c.id));
 
-      // update count
       const countEl = document.querySelector('[data-el="champCount"]');
       if (countEl) countEl.textContent = String(list.length);
 
-      // update list only
       const listEl = document.querySelector('[data-el="champList"]');
       if (!listEl) return;
       const scrollTop = listEl.scrollTop;
@@ -1501,7 +1438,6 @@
      **********************/
     function openSetupModal(match) {
       const players = (state.players || []).slice().sort((a,b)=>a.localeCompare(b,'ko'));
-      const opt = (selected) => [''].concat(players).map(p => `<option value="${escapeHtml(p)}" ${p===selected?'selected':''}>${escapeHtml(p||'-- 선택 --')}</option>`).join('');
 
       const playerSel = (side, idx, selected) => `
         <label class="text-xs text-slate-400">
@@ -1612,7 +1548,7 @@
 
       if (action === 'newMatch') {
         const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
-        const m = createNewMatch(preset);
+        createNewMatch(preset);
         toast('새 매치를 생성했습니다.');
         render();
         return;
@@ -1620,7 +1556,6 @@
 
       // Home shortcuts
       if (action === 'homeStart') {
-        // Ensure current match exists then go to draft
         ensureCurrentMatch();
         state.view = 'draft';
         saveAppState();
@@ -1643,39 +1578,11 @@
         render();
         return;
       }
-      if (action === 'homeSettings') {
-        state.view = 'settings';
-        saveAppState();
-        render();
-        return;
-      }
-      if (action === 'homeHistory') {
-        state.view = 'history';
-        saveAppState();
-        render();
-        return;
-      }
-      if (action === 'homeStats') {
-        state.view = 'stats';
-        saveAppState();
-        render();
-        return;
-      }
+      if (action === 'homeSettings') { state.view = 'settings'; saveAppState(); render(); return; }
+      if (action === 'homeHistory') { state.view = 'history'; saveAppState(); render(); return; }
+      if (action === 'homeStats') { state.view = 'stats'; saveAppState(); render(); return; }
 
-      if (action === 'openSetup') {
-        openSetupModal(ensureCurrentMatch());
-        return;
-      }
-
-      if (action === 'setupTeamName') {
-        // live input handled in input handler
-        return;
-      }
-
-      if (action === 'setupPlayer') {
-        // handled in change handler
-        return;
-      }
+      if (action === 'openSetup') { openSetupModal(ensureCurrentMatch()); return; }
 
       if (action === 'quickApply') {
         const root = document.getElementById('modalRoot');
@@ -1685,12 +1592,10 @@
         const blueList = parse(blueStr);
         const redList = parse(redStr);
 
-        // add to players list
         const set = new Set(state.players || []);
         for (const p of [...blueList, ...redList]) set.add(p);
         state.players = [...set];
 
-        // apply to modal temp fields
         const m = ensureCurrentMatch();
         m.blue.players = blueList;
         m.red.players = redList;
@@ -1701,13 +1606,7 @@
         return;
       }
 
-      if (action === 'setupSave') {
-        // just close; changes are applied live
-        closeModal();
-        toast('팀/선수 설정 저장 완료');
-        render();
-        return;
-      }
+      if (action === 'setupSave') { closeModal(); toast('팀/선수 설정 저장 완료'); render(); return; }
 
       if (action === 'pickChamp') {
         if (!match) return;
@@ -1747,11 +1646,7 @@
         return;
       }
 
-      if (action === 'finishDraft') {
-        if (!match) return;
-        finalizeDraft(match);
-        return;
-      }
+      if (action === 'finishDraft') { if (match) finalizeDraft(match); return; }
 
       if (action === 'goDraft') { state.view = 'draft'; saveAppState(); render(); return; }
       if (action === 'goReport') { state.view = 'report'; saveAppState(); render(); return; }
@@ -1765,16 +1660,11 @@
         return;
       }
 
-      if (action === 'saveReport') {
-        if (!match) return;
-        completeMatch(match);
-        return;
-      }
+      if (action === 'saveReport') { if (match) completeMatch(match); return; }
 
       if (action === 'setPOTM') {
         if (!match) return;
         const player = btn.getAttribute('data-player');
-        // toggle candidate
         match.potm = (match.potm === player) ? null : player;
         saveAppState();
         toast(match.potm ? 'POTM 후보로 지정했습니다. (저장 시 최종 POTM는 자동 재계산)' : 'POTM 후보를 해제했습니다.');
@@ -1892,7 +1782,6 @@
         try {
           const parsed = JSON.parse(txt);
           if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
-          // minimal validation
           if (!Array.isArray(parsed.matches)) throw new Error('missing matches');
           state = parsed;
           localStorage.setItem(APP_KEY, JSON.stringify(state));
@@ -1928,11 +1817,6 @@
         return;
       }
 
-      if (action === 'presetPlayer') {
-        // handled in change
-        return;
-      }
-
       if (action === 'applyPresetToCurrent') {
         const m = ensureCurrentMatch();
         const p = state.lastTeamPreset || {};
@@ -1944,11 +1828,6 @@
         saveAppState();
         toast('현재 매치에 프리셋 적용 완료');
         render();
-        return;
-      }
-
-      if (action === 'presetTeamName') {
-        // handled in input
         return;
       }
 
@@ -1973,11 +1852,9 @@
         render();
         return;
       }
-
-      if (action === 'deleteMatchConfirm' || action === 'resetDraftConfirm' || action === 'resetAllConfirm') return;
     });
 
-    // IME(한글) 조합 입력 이벤트 처리: 조합 중 리렌더 방지
+    // IME(한글) 조합 입력 이벤트 처리
     document.addEventListener('compositionstart', (e) => {
       const t = e.target;
       if (t && t.matches && t.matches('[data-input="champQuery"]')) {
@@ -1990,28 +1867,34 @@
       if (t && t.matches && t.matches('[data-input="champQuery"]')) {
         ui._isComposing = false;
         ui.champQuery = t.value;
-        // compositionend 직후 input 이벤트가 한 번 더 올 수 있어 중복 리렌더를 방지
         ui._skipNextChampQueryInput = true;
-        // 조합 종료 시점에만 안전하게 리렌더
-        renderPreserveFocus();
+        // IMPORTANT: do not re-render here. Only update list area.
+        updateChampionPickerPartial();
       }
     });
 
     document.addEventListener('input', (e) => {
       const t = e.target;
+
       if (t.matches('[data-input="champQuery"]')) {
-        // 조합 입력 중에는 리렌더하면 초성만 남고 입력이 끊김
         ui.champQuery = t.value;
+        // Some browsers fire an extra input right after compositionend
         if (ui._skipNextChampQueryInput) {
           ui._skipNextChampQueryInput = false;
+          // still update list just in case
+          updateChampionPickerPartial();
           return;
         }
-        if (!ui._isComposing) renderPreserveFocus();
+        // IMPORTANT: never re-render the whole draft screen on each keystroke.
+        // Only update champion list/count so IME doesn't break ("가레ㄴ" issue).
+        updateChampionPickerPartial();
+        return;
       }
 
       if (t.matches('[data-input="onlyAvailable"]')) {
         ui.showOnlyAvailable = t.checked;
-        renderPreserveFocus();
+        updateChampionPickerPartial();
+        return;
       }
 
       if (t.matches('[data-input="matchNotes"]')) {
@@ -2019,6 +1902,7 @@
         if (!m) return;
         m.result.notes = t.value;
         saveAppState();
+        return;
       }
 
       if (t.matches('[data-action="rateInput"]')) {
@@ -2034,7 +1918,7 @@
         else e0[key] = Number(t.value);
         m.ratings[player] = e0;
         saveAppState();
-        // don't fully rerender on every keystroke in comment; but keep simple
+        return;
       }
 
       if (t.matches('[data-action="setupTeamName"]')) {
@@ -2050,6 +1934,7 @@
           redPlayers: m.red.players,
         };
         saveAppState();
+        return;
       }
 
       if (t.matches('[data-action="presetTeamName"]')) {
@@ -2058,6 +1943,7 @@
         if (side === 'BLUE') state.lastTeamPreset.blueTeamName = t.value.trim() || 'BLUE';
         if (side === 'RED') state.lastTeamPreset.redTeamName = t.value.trim() || 'RED';
         saveAppState();
+        return;
       }
     });
 
@@ -2072,9 +1958,7 @@
         const team = side === 'BLUE' ? m.blue : m.red;
         team.players = team.players || [];
         team.players[idx] = val;
-        // de-dup within team
         team.players = team.players.filter((p,i,a) => p ? a.indexOf(p) === i : true).slice(0,5);
-        // keep length 5 for UI
         while (team.players.length < 5) team.players.push('');
 
         const allPlayers = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
@@ -2087,7 +1971,6 @@
           redPlayers: (m.red.players||[]).filter(Boolean).slice(0,5),
         };
         saveAppState();
-        // rerender modal for de-dup
         openSetupModal(m);
         return;
       }
@@ -2100,7 +1983,6 @@
         const arr = side === 'BLUE' ? (state.lastTeamPreset.bluePlayers = state.lastTeamPreset.bluePlayers || [])
                                    : (state.lastTeamPreset.redPlayers = state.lastTeamPreset.redPlayers || []);
         arr[idx] = val;
-        // de-dup within side
         const dedup = arr.filter((p,i,a)=>p ? a.indexOf(p)===i : true).slice(0,5);
         while (dedup.length < 5) dedup.push('');
         if (side === 'BLUE') state.lastTeamPreset.bluePlayers = dedup;
@@ -2116,14 +1998,12 @@
     (async function init() {
       await loadChampions();
 
-      // First visit UX: if there are no matches yet, start on Home instead of Draft.
       if (!Array.isArray(state.matches) || state.matches.length === 0) {
         state.view = 'home';
       } else if (!state.view) {
         state.view = 'home';
       }
 
-      // Normalize current match players arrays to length 5
       if (state.currentMatchId) {
         const m = getCurrentMatch();
         if (m) {
