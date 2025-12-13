@@ -1659,57 +1659,169 @@ function closeModal() {
     </div>
   `;
 }
+
+// 팀 이름별 색상 팔레트
+const TEAM_COLOR_STYLES = [
+  {
+    dot: 'bg-sky-400',
+    pillBg: 'bg-sky-950/50',
+    pillBorder: 'border-sky-500/60',
+    text: 'text-sky-100',
+  },
+  {
+    dot: 'bg-rose-400',
+    pillBg: 'bg-rose-950/50',
+    pillBorder: 'border-rose-500/60',
+    text: 'text-rose-100',
+  },
+  {
+    dot: 'bg-emerald-400',
+    pillBg: 'bg-emerald-950/50',
+    pillBorder: 'border-emerald-500/60',
+    text: 'text-emerald-100',
+  },
+  {
+    dot: 'bg-amber-400',
+    pillBg: 'bg-amber-950/40',
+    pillBorder: 'border-amber-500/60',
+    text: 'text-amber-100',
+  },
+  {
+    dot: 'bg-violet-400',
+    pillBg: 'bg-violet-950/50',
+    pillBorder: 'border-violet-500/60',
+    text: 'text-violet-100',
+  },
+  {
+    dot: 'bg-cyan-400',
+    pillBg: 'bg-cyan-950/50',
+    pillBorder: 'border-cyan-500/60',
+    text: 'text-cyan-100',
+  },
+];
+
+// 팀 이름 문자열을 기반으로 위 팔레트 중 하나 선택
+function getTeamColorStyle(teamName) {
+  if (!teamName) {
+    return {
+      dot: 'bg-slate-500',
+      pillBg: 'bg-slate-900/40',
+      pillBorder: 'border-slate-600',
+      text: 'text-slate-200',
+    };
+  }
+  let hash = 0;
+  for (let i = 0; i < teamName.length; i++) {
+    hash = (hash + teamName.charCodeAt(i)) % 1000;
+  }
+  return TEAM_COLOR_STYLES[hash % TEAM_COLOR_STYLES.length];
+}
+
     function computePlayerAggregates() {
-      const agg = new Map();
-      for (const m of state.matches) {
-        if (m.status !== 'completed') continue;
-        const players = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
-        for (const p of players) {
-          const e = m.ratings?.[p];
-          if (!e) continue;
-          const sc = computeScores(e);
-          if (!agg.has(p)) agg.set(p, { player:p, matches:0, potm:0, sumTotal:0, sumObj:0, sumSub:0 });
-          const a = agg.get(p);
-          a.matches += 1;
-          a.sumTotal += sc.total;
-          a.sumObj += sc.objective;
-          a.sumSub += sc.subjective;
-        }
-        if (m.potm) {
-          if (!agg.has(m.potm)) agg.set(m.potm, { player:m.potm, matches:0, potm:0, sumTotal:0, sumObj:0, sumSub:0 });
-          agg.get(m.potm).potm += 1;
-        }
+  const agg = new Map();
+
+  for (const m of state.matches) {
+    if (m.status !== 'completed') continue;
+
+    const bluePlayers = (m.blue.players || []).filter(Boolean);
+    const redPlayers  = (m.red.players  || []).filter(Boolean);
+    const blueSet = new Set(bluePlayers);
+    const redSet  = new Set(redPlayers);
+
+    const players = [...bluePlayers, ...redPlayers];
+
+    for (const p of players) {
+      const e = m.ratings?.[p];
+      if (!e) continue;
+      const sc = computeScores(e);
+
+      if (!agg.has(p)) {
+        agg.set(p, {
+          player: p,
+          matches: 0,
+          potm: 0,
+          sumTotal: 0,
+          sumObj: 0,
+          sumSub: 0,
+          teamName: '',
+        });
       }
-      const list = [...agg.values()].map(x => ({
-        ...x,
-        avgTotal: x.matches ? Math.round((x.sumTotal / x.matches) * 100) / 100 : 0,
-        avgObj: x.matches ? Math.round((x.sumObj / x.matches) * 100) / 100 : 0,
-        avgSub: x.matches ? Math.round((x.sumSub / x.matches) * 100) / 100 : 0,
-      }));
-      list.sort((a,b) => b.avgTotal - a.avgTotal);
-      return list;
+
+      const a = agg.get(p);
+      a.matches += 1;
+      a.sumTotal += sc.total;
+      a.sumObj   += sc.objective;
+      a.sumSub   += sc.subjective;
+
+      // 이 경기에서의 팀 이름 (마지막 경기 기준으로 표기)
+      let teamName = '';
+      if (blueSet.has(p)) teamName = m.blue.name || '';
+      else if (redSet.has(p)) teamName = m.red.name || '';
+      if (teamName) a.teamName = teamName;
     }
 
+    if (m.potm) {
+      if (!agg.has(m.potm)) {
+        agg.set(m.potm, {
+          player: m.potm,
+          matches: 0,
+          potm: 0,
+          sumTotal: 0,
+          sumObj: 0,
+          sumSub: 0,
+          teamName: '',
+        });
+      }
+      agg.get(m.potm).potm += 1;
+    }
+  }
+
+  const list = [...agg.values()].map(x => ({
+    ...x,
+    avgTotal: x.matches ? Math.round((x.sumTotal / x.matches) * 100) / 100 : 0,
+    avgObj:   x.matches ? Math.round((x.sumObj   / x.matches) * 100) / 100 : 0,
+    avgSub:   x.matches ? Math.round((x.sumSub   / x.matches) * 100) / 100 : 0,
+  }));
+
+  list.sort((a,b) => b.avgTotal - a.avgTotal);
+  return list;
+}
+
     function renderStatsView() {
-      const ranking = computePlayerAggregates();
-      const completedCount = state.matches.filter(m => m.status === 'completed').length;
+  const ranking = computePlayerAggregates();
+  const completedCount = state.matches.filter(m => m.status === 'completed').length;
 
-      const first = ranking[0]?.player;
-      const last = ranking[ranking.length-1]?.player;
+  const first = ranking[0]?.player;
+  const last  = ranking[ranking.length - 1]?.player;
 
-      const row = (r, idx) => {
+  const tbodyHtml = ranking.length
+    ? ranking.map((r, idx) => {
         const isFirst = r.player === first;
-        const isLast = r.player === last;
-        const icon = isFirst ? '👑' : (isLast ? '💀' : '');
+        const isLast  = r.player === last;
+        const icon    = isFirst ? '👑' : (isLast ? '💀' : '');
+
+        const cls = getTeamColorStyle(r.teamName || '');
+        const teamCell = r.teamName
+          ? `
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full ${cls.dot}"></span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-semibold ${cls.pillBg} ${cls.pillBorder} ${cls.text}">
+                ${escapeHtml(r.teamName)}
+              </span>
+            </div>
+          `
+          : `<span class="text-slate-500 text-sm">-</span>`;
+
         return `
           <tr class="border-b border-slate-800">
-            <td class="px-3 py-2 text-sm font-bold">${idx+1}</td>
+            <td class="px-3 py-2 text-sm font-bold">${idx + 1}</td>
             <td class="px-3 py-2">
               <div class="flex items-center gap-2">
                 <span class="text-lg">${icon}</span>
                 <div class="font-extrabold">${escapeHtml(r.player)}</div>
               </div>
             </td>
+            <td class="px-3 py-2">${teamCell}</td>
             <td class="px-3 py-2 text-sm text-slate-300">${r.matches}</td>
             <td class="px-3 py-2 text-sm font-black text-amber-200">${r.avgTotal}</td>
             <td class="px-3 py-2 text-sm text-slate-300">${r.avgObj}</td>
@@ -1717,56 +1829,61 @@ function closeModal() {
             <td class="px-3 py-2 text-sm text-slate-300">${r.potm}</td>
           </tr>
         `;
-      };
+      }).join('')
+    : `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">아직 완료된 경기가 없습니다.</td></tr>`;
 
-      return `
-        <div class="grid grid-cols-1 gap-4">
-          ${renderMatchHeader(getCurrentMatch())}
+  return `
+    <div class="grid grid-cols-1 gap-4">
+      ${renderMatchHeader(getCurrentMatch())}
 
-          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div class="text-lg font-extrabold">POTM 랭킹 (평균 Total Score)</div>
-                <div class="text-xs text-slate-500 mt-1">완료된 판: ${completedCount}개 · 1위 👑 / 꼴등 💀</div>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button data-action="goReport" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">현재 판 평점</button>
-                <button data-action="goHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
-              </div>
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div class="text-lg font-extrabold">POTM 랭킹 (평균 Total Score)</div>
+            <div class="text-xs text-slate-500 mt-1">
+              완료된 판: ${completedCount}개 · 1위 👑 / 꼴등 💀 ·
+              팀 색상은 이름 기준으로 자동 분배됩니다.
             </div>
-
-            <div class="mt-4 overflow-x-auto scrollbar">
-              <table class="w-full min-w-[720px] border border-slate-800 rounded-xl overflow-hidden">
-                <thead class="bg-slate-950">
-                  <tr class="text-left text-xs text-slate-400">
-                    <th class="px-3 py-2">#</th>
-                    <th class="px-3 py-2">선수</th>
-                    <th class="px-3 py-2">경기수</th>
-                    <th class="px-3 py-2">Avg Total</th>
-                    <th class="px-3 py-2">Avg Obj</th>
-                    <th class="px-3 py-2">Avg Sub</th>
-                    <th class="px-3 py-2">POTM</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${ranking.length ? ranking.map(row).join('') : `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">아직 완료된 경기가 없습니다.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <div class="font-extrabold">팁</div>
-            <ul class="mt-2 text-sm text-slate-400 list-disc pl-5">
-              <li>BO5 피어리스는 <span class="text-amber-200 font-bold">시리즈(Series ID)</span> 기준으로 누적됩니다. 새 시리즈를 만들면 LOCKED가 초기화됩니다.</li>
-              <li><span class="text-emerald-200 font-bold">한쪽 3승</span> 달성 시 시리즈는 즉시 종료되며, 결정 게임 이후 판은 진행할 수 없습니다.</li>
-              <li>매 판 <span class="text-sky-200 font-bold">사이드 스왑</span>이 가능하며, 승수는 사이드가 아닌 팀(A/B) 기준으로 집계됩니다.</li>
-              <li>Export/Import로 다른 PC로 옮기거나 백업할 수 있습니다.</li>
-            </ul>
-          </section>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button data-action="goReport" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">현재 판 평점</button>
+            <button data-action="goHistory" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">히스토리</button>
+          </div>
         </div>
-      `;
-    }
+
+        <div class="mt-4 overflow-x-auto scrollbar">
+          <table class="w-full min-w-[800px] border border-slate-800 rounded-xl overflow-hidden">
+            <thead class="bg-slate-950">
+              <tr class="text-left text-xs text-slate-400">
+                <th class="px-3 py-2">#</th>
+                <th class="px-3 py-2">선수</th>
+                <th class="px-3 py-2">팀</th>
+                <th class="px-3 py-2">경기수</th>
+                <th class="px-3 py-2">Avg Total</th>
+                <th class="px-3 py-2">Avg Obj</th>
+                <th class="px-3 py-2">Avg Sub</th>
+                <th class="px-3 py-2">POTM</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tbodyHtml}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <div class="font-extrabold">팁</div>
+        <ul class="mt-2 text-sm text-slate-400 list-disc pl-5">
+          <li>BO5 피어리스는 <span class="text-amber-200 font-bold">시리즈(Series ID)</span> 기준으로 누적됩니다. 새 시리즈를 만들면 LOCKED가 초기화됩니다.</li>
+          <li><span class="text-emerald-200 font-bold">한쪽 3승</span> 달성 시 시리즈는 즉시 종료되며, 결정 게임 이후 판은 진행할 수 없습니다.</li>
+          <li>매 판 <span class="text-sky-200 font-bold">사이드 스왑</span>이 가능하며, 승수는 사이드가 아닌 팀(A/B) 기준으로 집계됩니다.</li>
+          <li>Export/Import로 다른 PC로 옮기거나 백업할 수 있습니다.</li>
+        </ul>
+      </section>
+    </div>
+  `;
+}
 
     function renderHistoryView() {
       const cards = state.matches.map(m => {
@@ -2703,7 +2820,22 @@ if (nav) {
       }
     });
 
-    document.addEventListener('input', (e) => {
+    document.addEventListener('compositionstart', (e) => {
+      const t = e.target;
+      if (t && t.matches && t.matches('[data-input="champQuery"]')) ui._isComposing = true;
+    });
+
+    document.addEventListener('compositionend', (e) => {
+      const t = e.target;
+      if (t && t.matches && t.matches('[data-input="champQuery"]')) {
+        ui._isComposing = false;
+        ui.champQuery = t.value;
+        ui._skipNextChampQueryInput = true;
+        updateChampionPickerPartial();
+      }
+    });
+
+   document.addEventListener('input', (e) => {
   const t = e.target;
 
   if (t.matches('[data-input="champQuery"]')) {
@@ -2796,6 +2928,92 @@ if (nav) {
   }
 });
 
+    document.addEventListener('change', (e) => {
+  const t = e.target;
+
+  // ★ 입력을 마치고 칸을 벗어났을 때만 전체 다시 그리기
+  if (t.matches('[data-action="rateInput"]')) {
+    if (state.view === 'report') {
+      render();  // 그래프, 점수, 카드 헤더 갱신
+    }
+    return;
+  }
+
+  // ★ 플레이어별 실제 챔피언 선택
+  if (t.matches('[data-action="setPlayerChamp"]')) {
+    const m = getCurrentMatch();
+    if (!m) return;
+    const player = t.getAttribute('data-player');
+    if (!player) return;
+
+    m.ratings = m.ratings || {};
+    const entry = m.ratings[player] || {
+      k: 0,
+      d: 0,
+      a: 0,
+      cs: 0,
+      vision: 0,
+      rating: 7,
+      comment: '',
+      champId: null,
+      damage: 0,
+    };
+
+    entry.champId = t.value || null;   // "" -> null
+    m.ratings[player] = entry;
+    saveAppState();
+    render();                          // 헤더/아이콘 업데이트
+    return;
+  }
+
+  // ★ 이하 기존 change 핸들러들 그대로 유지 ★
+
+  if (t.matches('[data-action="setupPlayer"]')) {
+    const m = getCurrentMatch();
+    if (!m) return;
+    const side = t.getAttribute('data-side');
+    const idx  = Number(t.getAttribute('data-idx') || 0);
+    const val  = t.value;
+    const team = side === 'BLUE' ? m.blue : m.red;
+    team.players = team.players || [];
+    team.players[idx] = val;
+    team.players = team.players.filter((p,i,a) => p ? a.indexOf(p) === i : true).slice(0,5);
+    while (team.players.length < 5) team.players.push('');
+
+    const allPlayers = [...(m.blue.players||[]), ...(m.red.players||[])].filter(Boolean);
+    m.ratings = createEmptyRatings(allPlayers);
+
+    state.lastTeamPreset = {
+      blueTeamName: m.blue.name,
+      redTeamName:  m.red.name,
+      bluePlayers:  (m.blue.players||[]).filter(Boolean).slice(0,5),
+      redPlayers:   (m.red.players||[]).filter(Boolean).slice(0,5),
+    };
+    saveAppState();
+    openSetupModal(m);
+    return;
+  }
+
+  if (t.matches('[data-action="presetPlayer"]')) {
+    const side = t.getAttribute('data-side');
+    const idx  = Number(t.getAttribute('data-idx') || 0);
+    const val  = t.value;
+    state.lastTeamPreset = state.lastTeamPreset || {
+      blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[]
+    };
+    const arr = side === 'BLUE'
+      ? (state.lastTeamPreset.bluePlayers = state.lastTeamPreset.bluePlayers || [])
+      : (state.lastTeamPreset.redPlayers  = state.lastTeamPreset.redPlayers  || []);
+    arr[idx] = val;
+    const dedup = arr.filter((p,i,a)=>p ? a.indexOf(p)===i : true).slice(0,5);
+    while (dedup.length < 5) dedup.push('');
+    if (side === 'BLUE') state.lastTeamPreset.bluePlayers = dedup;
+    else                 state.lastTeamPreset.redPlayers  = dedup;
+    saveAppState();
+    render();
+    return;
+  }
+});
     // 멸망전 팀 프리셋 (원하는 이름과 선수들로 바꿔 쓰면 됨)
 const TEAM_PRESETS = [
   {
