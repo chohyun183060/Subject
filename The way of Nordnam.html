@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />  
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>롤 멸망전 - 피어리스(BO5) 드래프트 & POTM</title>
+  <title>The way of Nordnam</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root { color-scheme: dark; }
@@ -19,7 +19,7 @@
   <div class="max-w-7xl mx-auto px-4 py-6">
     <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl md:text-3xl font-black tracking-tight"> 롤 멸망전 <span class="text-sky-300">피어리스</span> <span class="text-amber-300">POTM</span></h1>
+        <h1 class="text-2xl md:text-3xl font-black tracking-tight"> The way of Nordnam </h1>
         
       </div>
       <div class="flex flex-wrap gap-2">
@@ -34,13 +34,7 @@
 
     <main id="app" class="mt-6"></main>
 
-    <footer class="mt-10 text-xs text-slate-500">
-      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <p>드래프트 순서: B R B R B R(밴) → B R R B R B(픽) → R B R B(밴) → R B B R(픽)</p>
-        <p>BO5 피어리스: 이전 판에서 밴/픽된 챔피언은 다음 판부터 밴/픽 불가 · Export/Import로 백업 가능</p>
-      </div>
-    </footer>
-  </div>
+   
 
 <!-- Modal -->
 <div id="modalRoot" class="fixed inset-0 hidden">
@@ -94,6 +88,8 @@
     };
     const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
     const escapeHtml = (s) => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    
 
     /**********************
      * Search helpers (Korean-friendly)
@@ -712,7 +708,7 @@
       if (!match.result) match.result = { winnerSide: null, winnerKey: null, notes: '' };
 
       if (!match.result.winnerKey && !match.result.winnerSide) {
-        toast('승리 팀(Team A/B)을 선택해주세요.');
+        toast('승리 팀을 선택해주세요.');
         return;
       }
 
@@ -869,7 +865,7 @@ function closeModal() {
                 <div class="mt-2 text-sm text-slate-300">기록이 없거나(삭제됨) 현재 선택된 매치가 없습니다. 새 시리즈를 만들거나 Import로 복원하세요.</div>
               </div>
               <div class="flex flex-wrap gap-2">
-                <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
+                
                 <button data-action="export" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Export</button>
                 <button data-action="import" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">Import</button>
               </div>
@@ -909,11 +905,11 @@ function closeModal() {
               <div class="mt-2 flex flex-col gap-1">
                 <div class="text-sm text-slate-300">진행: <span class="font-extrabold text-slate-100">${escapeHtml(stepText)}</span></div>
                 <div class="text-xs text-slate-500">피어리스 LOCKED(이전 판 밴/픽): <span class="text-amber-200 font-extrabold">${lockedPrev.size}</span>개</div>
-                <div class="text-[11px] text-slate-500">사이드 매핑: BLUE=${escapeHtml(getTeamKeyForSide(match,'BLUE'))} · RED=${escapeHtml(getTeamKeyForSide(match,'RED'))}</div>
+                <div class="text-[11px] text-slate-500">사이드 매핑: 블루=${escapeHtml(getTeamKeyForSide(match,'블루'))} · 레드=${escapeHtml(getTeamKeyForSide(match,'레드'))}</div>
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
+              
               <button data-action="swapSides" class="px-3 py-2 rounded-xl ${swapEnabled ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-semibold" ${swapEnabled ? '' : 'disabled'}>사이드 스왑</button>
               <button data-action="nextGame" class="px-3 py-2 rounded-xl ${nextEnabled ? 'bg-sky-700 hover:bg-sky-600' : 'bg-slate-700/60 cursor-not-allowed'} text-sm font-bold" ${nextEnabled ? '' : 'disabled'}>다음 판</button>
               <button data-action="openSetup" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold">팀/선수 설정</button>
@@ -928,7 +924,7 @@ function closeModal() {
     function renderTeamPanel(match, side) {
       const isBlue = side === 'BLUE';
       const team = isBlue ? match.blue : match.red;
-      const otherSide = isBlue ? 'RED' : 'BLUE';
+      const otherSide = isBlue ? '레드' : '블루';
       const bans = match.draft.bans[side] || [];
       const picks = match.draft.picks[side] || [];
       const color = isBlue ? 'sky' : 'rose';
@@ -968,7 +964,7 @@ function closeModal() {
             <div class="flex items-center gap-2">
               <div class="w-2.5 h-2.5 rounded-full bg-${color}-400"></div>
               <div class="font-extrabold">${escapeHtml(team.name)}</div>
-              <div class="text-xs text-slate-400">(${SIDE_KO[side]} 진영)</div>
+              <div class="text-xs text-slate-400">(${SIDE_KO[side]} 팀)</div>
             </div>
             <div class="text-xs text-slate-400">선수: ${escapeHtml((team.players || []).filter(Boolean).join(', ') || '미설정')}</div>
           </div>
@@ -1002,7 +998,7 @@ function closeModal() {
             <div>
               <div class="flex items-center justify-between mb-2">
                 <h4 class="font-bold">픽 (${picks.length}/5)</h4>
-                <div class="text-xs text-slate-500">BO5 피어리스: 이전 판 밴/픽 챔피언은 LOCKED</div>
+             
               </div>
               <div class="grid grid-cols-1 gap-2">
                 ${Array.from({length:5}).map((_,i)=>slot(i, picks[i])).join('')}
@@ -1113,8 +1109,7 @@ function closeModal() {
           </div>
 
           <div class="mt-4 p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <div class="text-sm font-bold">직접 입력 (목록에 없는 챔피언용)</div>
-            <p class="text-xs text-slate-500 mt-1">아이콘은 표시되지 않을 수 있습니다(입력값을 ID로 저장). 오타 주의!</p>
+            <div class="text-sm font-bold">직접 입력 </div>
             <div class="mt-2 flex flex-col md:flex-row gap-2">
               <input data-input="manualChamp" placeholder="예: Ahri / LeeSin / CustomName" class="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-600" />
               <button data-action="pickManual" class="px-3 py-2 rounded-xl ${lock.locked ? 'bg-slate-700/60 cursor-not-allowed' : 'bg-sky-700 hover:bg-sky-600'} font-bold" ${lock.locked ? 'disabled' : ''}>현재 단계에 기록</button>
@@ -1172,32 +1167,14 @@ function closeModal() {
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <div class="text-2xl font-black tracking-tight">홈</div>
-                <div class="mt-2 text-sm text-slate-400">BO5 피어리스 드래프트(이전 판 밴/픽 = LOCKED) → 경기 입력 → POTM/랭킹까지 한 번에 관리합니다.</div>
                 <div class="mt-2 text-xs text-slate-500">현재 데이터: 전체 ${totalCount}판 · 완료 ${completedCount}판</div>
               </div>
               <div class="flex flex-wrap gap-2">
                 ${primary}
-                <button data-action="homeNewMatch" class="px-4 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-600 font-black">새 시리즈 만들기</button>
+                
                 <button data-action="homeSettings" class="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold">설정(선수/팀)</button>
               </div>
-            </div>
-          </section>
-
-          <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-            <div class="font-extrabold">빠른 안내</div>
-            <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                <div class="text-sm font-black">1) 팀/선수 설정</div>
-                <div class="mt-1 text-xs text-slate-500">설정에서 선수 목록과 기본 팀 프리셋을 등록</div>
-              </div>
-              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                <div class="text-sm font-black">2) 밴픽 진행(BO5)</div>
-                <div class="mt-1 text-xs text-slate-500">이전 판에서 밴/픽된 챔피언은 다음 판부터 자동 LOCKED</div>
-              </div>
-              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                <div class="text-sm font-black">3) 경기 입력 & POTM</div>
-                <div class="mt-1 text-xs text-slate-500">KDA/CS/시야 + 평점(1~10) 입력 → POTM 자동 선정</div>
-              </div>
+        
             </div>
           </section>
 
@@ -1287,12 +1264,13 @@ function closeModal() {
           <span>${escapeHtml(teamName)} 승 <span class="text-[11px] text-slate-400 font-semibold">(Team ${key})</span></span>
           <span class="text-[11px] font-semibold ${
             active ? `text-${color}-200` : 'text-slate-500'
-          }">현재 ${escapeHtml(side || '-')} 사이드</span>
+          }"> ${escapeHtml(side || '-')} 팀</span>
         </span>
       </button>
     `;
   };
 
+  
   let potmPreview = null;
   let potmScore = null;
   for (const p of allPlayers) {
@@ -1336,7 +1314,7 @@ function closeModal() {
             } text-sm font-bold"
             ${stepDone ? '' : 'disabled'}
           >
-            경기 저장(완료)
+            경기 저장
           </button>
         </div>
       </div>
@@ -1345,7 +1323,7 @@ function closeModal() {
         ${winnerBadge('A')}
         ${winnerBadge('B')}
         <div class="flex-1"></div>
-        <div class="text-xs text-slate-500 self-center">승리 선택은 Team A/B 기준(사이드 스왑과 무관)</div>
+        
       </div>
 
       <div class="mt-3">
@@ -1473,16 +1451,6 @@ function closeModal() {
         ${input('cs','CS',0,999,1)}
         ${input('damage','딜량',0,999999,100)}
         ${input('vision','시야 점수',0,999,1)}
-        <div class="md:col-span-1 flex items-end">
-          <button
-            data-action="fillDemo"
-            data-player="${escapeHtml(player)}"
-            class="w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold"
-          >
-            랜덤 예시
-          </button>
-        </div>
-
         ${input('rating','평점(1~10)',1,10,1)}
         <label class="text-xs text-slate-400 md:col-span-5">
           한 줄 평
@@ -1586,7 +1554,7 @@ function closeModal() {
       <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
         <div class="flex items-center justify-between">
           <div class="font-extrabold">딜량 그래프</div>
-          <div class="text-xs text-slate-500">현재 경기 기준 · BLUE/RED 색상 구분</div>
+          <div class="text-xs text-slate-500">현재 경기 기준 · 블루/레드 색상 구분</div>
         </div>
         <div class="mt-4 h-40 flex items-end gap-2 overflow-x-auto scrollbar pb-2">
           ${bars}
@@ -1602,7 +1570,6 @@ function closeModal() {
     <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
       <div class="flex items-center justify-between">
         <div class="font-extrabold">드래프트 요약</div>
-        <div class="text-xs text-slate-500">(아이콘 표시 · 읽기 전용)</div>
       </div>
       <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -1841,8 +1808,7 @@ function getTeamColorStyle(teamName) {
           <div>
             <div class="text-lg font-extrabold">POTM 랭킹 (평균 Total Score)</div>
             <div class="text-xs text-slate-500 mt-1">
-              완료된 판: ${completedCount}개 · 1위 👑 / 꼴등 💀 ·
-              팀 색상은 이름 기준으로 자동 분배됩니다.
+              완료된 판: ${completedCount}개 
             </div>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -1869,19 +1835,6 @@ function getTeamColorStyle(teamName) {
               ${tbodyHtml}
             </tbody>
           </table>
-        </div>
-      </section>
-
-      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-        <div class="font-extrabold">팁</div>
-        <ul class="mt-2 text-sm text-slate-400 list-disc pl-5">
-          <li>BO5 피어리스는 <span class="text-amber-200 font-bold">시리즈(Series ID)</span> 기준으로 누적됩니다. 새 시리즈를 만들면 LOCKED가 초기화됩니다.</li>
-          <li><span class="text-emerald-200 font-bold">한쪽 3승</span> 달성 시 시리즈는 즉시 종료되며, 결정 게임 이후 판은 진행할 수 없습니다.</li>
-          <li>매 판 <span class="text-sky-200 font-bold">사이드 스왑</span>이 가능하며, 승수는 사이드가 아닌 팀(A/B) 기준으로 집계됩니다.</li>
-          <li>Export/Import로 다른 PC로 옮기거나 백업할 수 있습니다.</li>
-        </ul>
-      </section>
-    </div>
   `;
 }
 
@@ -1940,10 +1893,9 @@ function getTeamColorStyle(teamName) {
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-lg font-extrabold">경기 히스토리</div>
-                <div class="text-xs text-slate-500 mt-1">각 기록은 "한 판"이며, 동일 Series ID로 BO5를 묶습니다. (팀은 A/B로 고정, 매 판 블루/레드는 스왑 가능)</div>
               </div>
               <div class="flex gap-2">
-                <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-bold">새 시리즈</button>
+                
               </div>
             </div>
           </section>
@@ -1954,7 +1906,7 @@ function getTeamColorStyle(teamName) {
 
     function renderSettingsView() {
       const players = (state.players || []).slice().sort((a,b)=>a.localeCompare(b,'ko'));
-      const preset = state.lastTeamPreset || { blueTeamName:'BLUE', redTeamName:'RED', bluePlayers:[], redPlayers:[] };
+      const preset = state.lastTeamPreset || { blueTeamName:'블루', redTeamName:'레드', bluePlayers:[], redPlayers:[] };
 
       const playerChips = players.map(p => `
         <div class="flex items-center gap-2 px-2 py-1 rounded-xl bg-slate-950 border border-slate-800">
@@ -1995,7 +1947,6 @@ function getTeamColorStyle(teamName) {
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <div class="font-extrabold">선수 목록</div>
-                <div class="text-xs text-slate-500 mt-1">이름은 통계 집계 키로 사용됩니다. (동명이인 주의)</div>
               </div>
               <div class="flex gap-2">
                 <input data-input="newPlayer" placeholder="새 선수 이름" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800" />
@@ -2039,9 +1990,9 @@ function getTeamColorStyle(teamName) {
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
-              <button data-action="swapPresetSides" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">프리셋 BLUE↔RED 스왑</button>
+              <button data-action="swapPresetSides" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">프리셋 블루↔레드 스왑</button>
               <button data-action="applyPresetToCurrent" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">현재 판에 적용</button>
-              <button data-action="newMatch" class="px-3 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 font-bold">프리셋으로 새 시리즈</button>
+              
             </div>
           </section>
         </div>
@@ -2157,7 +2108,7 @@ function getTeamColorStyle(teamName) {
       <div class="mt-2 flex flex-wrap gap-2">
         <button
           data-action="applyTeamPreset"
-          data-side="BLUE"
+          data-side="블루"
           data-id="${escapeHtml(p.id)}"
           class="px-2 py-1 rounded-lg bg-sky-700 hover:bg-sky-600 text-xs font-bold"
         >
@@ -2165,7 +2116,7 @@ function getTeamColorStyle(teamName) {
         </button>
         <button
           data-action="applyTeamPreset"
-          data-side="RED"
+          data-side="레드"
           data-id="${escapeHtml(p.id)}"
           class="px-2 py-1 rounded-lg bg-rose-700 hover:bg-rose-600 text-xs font-bold"
         >
@@ -2188,10 +2139,10 @@ function getTeamColorStyle(teamName) {
         <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
           <div class="font-black text-sky-200">블루</div>
           <label class="text-xs text-slate-400 mt-2 block">팀 이름
-            <input data-action="setupTeamName" data-side="BLUE" value="${escapeHtml(match.blue.name)}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
+            <input data-action="setupTeamName" data-side="블루" value="${escapeHtml(match.blue.name)}" class="w-full mt-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
           </label>
           <div class="mt-3 grid grid-cols-2 gap-2">
-            ${Array.from({length:5}).map((_,i)=>playerSel('BLUE', i, match.blue.players?.[i]||'')).join('')}
+            ${Array.from({length:5}).map((_,i)=>playerSel('블루', i, match.blue.players?.[i]||'')).join('')}
           </div>
         </div>
 
@@ -2217,18 +2168,12 @@ function getTeamColorStyle(teamName) {
         <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           ${presetsHtml}
         </div>
-      </div>
-
-      <!-- 기존 빠른 입력 블록 -->
-      <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
-        <div class="font-bold">빠른 입력</div>
-        ...
-      </div>
+     
     </div>
   `;
       const footer = `
         <div class="flex flex-1 flex-wrap gap-2 justify-end">
-          <button data-action="setupSwapSides" class="px-3 py-2 rounded-xl ${swapEnabled ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-700/60 cursor-not-allowed'} font-semibold" ${swapEnabled ? '' : 'disabled'} title="${escapeHtml(swapEnabled ? 'BLUE/RED 팀과 선수 위치를 서로 바꿉니다.' : (swapAllow.reason || '지금은 스왑할 수 없습니다.'))}">BLUE↔RED 스왑</button>
+          <button data-action="setupSwapSides" class="px-3 py-2 rounded-xl ${swapEnabled ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-700/60 cursor-not-allowed'} font-semibold" ${swapEnabled ? '' : 'disabled'} title="${escapeHtml(swapEnabled ? '블루/레드팀과 선수 위치를 서로 바꿉니다.' : (swapAllow.reason || '지금은 스왑할 수 없습니다.'))}">블루↔레드 스왑</button>
           <button data-action="modalClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">닫기</button>
           <button data-action="setupSave" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold">저장</button>
         </div>
@@ -2516,10 +2461,10 @@ if (nav) {
 
     const m = ensureCurrentMatch();
 
-    if (side === 'BLUE') {
+    if (side === '블루') {
       m.blue.name = preset.name;
       m.blue.players = (preset.players || []).slice(0, 5);
-    } else if (side === 'RED') {
+    } else if (side === '레드') {
       m.red.name = preset.name;
       m.red.players = (preset.players || []).slice(0, 5);
     }
@@ -2537,7 +2482,7 @@ if (nav) {
     };
 
     saveAppState();
-    toast(`"${preset.name}" 팀을 ${side === 'BLUE' ? '블루' : '레드'}에 적용했습니다.`);
+    toast(`"${preset.name}" 팀을 ${side === '블루' ? '블루' : '레드'}에 적용했습니다.`);
     openSetupModal(m);   // 모달 내용 다시 렌더링
     return;
   }
@@ -2661,7 +2606,7 @@ if (nav) {
               <div class="mt-1 text-sm text-slate-400">팀: <span class="text-slate-100 font-extrabold">${escapeHtml(teams.aName)}</span> vs <span class="text-slate-100 font-extrabold">${escapeHtml(teams.bName)}</span></div>
               <div class="mt-1 text-sm text-slate-400">승리(해당 게임): <span class="text-slate-100 font-extrabold">${escapeHtml(winner)}</span> · POTM: <span class="text-amber-200 font-extrabold">${escapeHtml(m.potm||'-')}</span></div>
               <div class="mt-2 text-xs text-slate-500">메모: ${escapeHtml(m.result?.notes||'')}</div>
-              <div class="mt-2 text-xs text-slate-500">사이드 매핑: BLUE=${escapeHtml(getTeamKeyForSide(m,'BLUE'))} · RED=${escapeHtml(getTeamKeyForSide(m,'RED'))}</div>
+              <div class="mt-2 text-xs text-slate-500">사이드 매핑: 블루=${escapeHtml(getTeamKeyForSide(m,'블루'))} · RED=${escapeHtml(getTeamKeyForSide(m,'레드'))}</div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2672,7 +2617,7 @@ if (nav) {
                 <div class="mt-2 text-xs text-slate-500">선수: ${(m.blue.players||[]).filter(Boolean).map(escapeHtml).join(', ') || '-'}</div>
               </div>
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <div class="font-bold text-rose-200">${escapeHtml(m.red.name)} (RED)</div>
+                <div class="font-bold text-rose-200">${escapeHtml(m.red.name)} (레드)</div>
                 <div class="mt-2 text-sm text-slate-300">BAN: ${(m.draft?.bans?.RED||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
                 <div class="mt-1 text-sm text-slate-300">PICK: ${(m.draft?.picks?.RED||[]).map(c=>escapeHtml(champs.find(x=>x.id===c)?.name||c)).join(', ') || '-'}</div>
                 <div class="mt-2 text-xs text-slate-500">선수: ${(m.red.players||[]).filter(Boolean).map(escapeHtml).join(', ') || '-'}</div>
@@ -2974,7 +2919,7 @@ if (nav) {
     const side = t.getAttribute('data-side');
     const idx  = Number(t.getAttribute('data-idx') || 0);
     const val  = t.value;
-    const team = side === 'BLUE' ? m.blue : m.red;
+    const team = side === 'blue' ? m.blue : m.red;
     team.players = team.players || [];
     team.players[idx] = val;
     team.players = team.players.filter((p,i,a) => p ? a.indexOf(p) === i : true).slice(0,5);
