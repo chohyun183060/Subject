@@ -41,7 +41,7 @@
   <div class="flex items-center gap-4">
       <h1 class="text-xl font-black text-[#C8AA6E] cursor-pointer tracking-widest uppercase" onclick="app.nav('home')">The Way of Nordnam</h1>
       <div class="flex items-center gap-2 pl-4 border-l border-slate-800">
-          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="BGM (LCK Draft Theme)">
+          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="BGM (LCK 2024 Draft Theme)">
               <span class="text-xs">♪</span>
           </button>
           <input type="range" id="bgmVol" min="0" max="100" step="1" oninput="act.setVolume(this.value)" class="w-20 accent-[#C8AA6E] h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" title="볼륨 조절">
@@ -69,7 +69,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v20_yt_bgm', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v21_bgm_2024', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -98,12 +98,12 @@ function onYouTubeIframeAPIReady() {
   ytPlayer = new YT.Player('yt-player', {
     height: '200',
     width: '200',
-    videoId: 'V1gTYew5k4U', // LCK Draft Music
+    videoId: 'HdkDii-yt_U', // 2024 LCK 밴픽 브금으로 변경됨
     playerVars: {
       'autoplay': 0,
       'controls': 0,
       'loop': 1,
-      'playlist': 'V1gTYew5k4U' // 루프를 위해 필요
+      'playlist': 'HdkDii-yt_U' // 루프를 위해 필요
     },
     events: {
       'onReady': onPlayerReady
@@ -115,9 +115,7 @@ function onPlayerReady(event) {
     if(state.bgm) {
         event.target.setVolume(state.bgm.vol);
         if(state.bgm.playing) {
-            // 자동재생 시도
             const p = event.target.playVideo();
-            // 일부 브라우저에서 Promise가 반환되지 않을 수 있음
             if (p && p.catch) {
                 p.catch(() => { /* 자동재생 막힘, 클릭 시 재생됨 */ });
             }
@@ -155,14 +153,12 @@ const app = {
         state = { ...state, ...loaded };
     }
     
-    // 볼륨 슬라이더 초기화
     if(!state.bgm) state.bgm = {vol:50, playing:true};
     const volInput = document.getElementById('bgmVol');
     if(volInput) volInput.value = state.bgm.vol;
 
     app.render();
     
-    // 안내 메시지
     setTimeout(() => {
         if(!ytPlayer || ytPlayer.getPlayerState() !== 1) {
             app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
@@ -243,7 +239,7 @@ const renderHome = () => `
     <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden">
       <div class="absolute inset-0 bg-[url('https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/bg-pattern.png')] opacity-10"></div>
       <h2 class="text-4xl font-black text-[#f0e6d2] uppercase tracking-widest z-10 drop-shadow-lg">LoL Fearless Draft</h2>
-      <p class="text-sm text-[#a09b8c] z-10">인간의 욕심은 돼지와 같다</p>
+      <p class="text-sm text-[#a09b8c] z-10">5전 3선승제 · 피어리스 밴픽 시뮬레이터</p>
       <button data-act="new" class="mt-2 px-10 py-4 bg-[#C8AA6E] text-[#010a13] font-bold text-xl uppercase tracking-wider hover:bg-[#d6b97e] transition-all shadow-[0_0_20px_rgba(200,170,110,0.4)] z-10 transform hover:scale-105">시리즈 시작</button>
     </div>
     <div class="p-6 bg-[#091428] border border-slate-800">
@@ -259,9 +255,9 @@ const renderHome = () => `
             <div class="font-bold text-[#f0e6d2]"><span class="text-blue-400">${m.blue.name}</span> vs <span class="text-red-400">${m.red.name}</span></div>
           </div>
           <div class="flex gap-2">
-            <button data-act="load" data-id="${m.id}" class="text-xs bg-[#1e2328] border border-[#C8AA6E] text-[#C8AA6E] px-4 py-2 hover:bg-[#C8AA6E] hover:text-black transition-colors font-bold">불러오기</button>
+            <button data-act="load" data-id="${m.id}" class="text-xs bg-[#1e2328] border border-[#C8AA6E] text-[#C8AA6E] px-4 py-2 hover:bg-[#C8AA6E] hover:text-black transition-colors font-bold">LOAD</button>
             <button data-act="editTitle" data-id="${m.seriesId}" class="text-xs bg-slate-800 text-slate-300 px-3 py-2 rounded hover:bg-slate-700 transition-colors border border-slate-700">제목</button>
-            <button data-act="del" data-id="${m.id}" class="text-xs text-red-900 hover:text-red-500 px-2 font-bold">삭제</button>
+            <button data-act="del" data-id="${m.id}" class="text-xs text-red-900 hover:text-red-500 px-2 font-bold">✕</button>
           </div>
         </div>
       `).join('')}
@@ -537,7 +533,6 @@ const renderReport = (m) => {
             </select>
          </div>
       </div>
-      
       <div class="grid grid-cols-4 gap-2 text-sm items-center">
         <div class="col-span-3 flex gap-1">
             <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.k}" onchange="act.rate('${p}','k',this.value)" placeholder="K">
@@ -546,14 +541,12 @@ const renderReport = (m) => {
         </div>
         <div class="text-[10px] text-slate-500 text-center font-bold">KDA</div>
       </div>
-
       <div class="flex gap-2 text-sm items-center">
         <div class="flex-1">
             <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.damage}" onchange="act.rate('${p}','damage',this.value)" placeholder="Damage">
         </div>
         <span class="text-[10px] text-slate-500 w-8 text-center font-bold">DMG</span>
       </div>
-
       <div class="flex items-center gap-2 mt-1 pt-2 border-t border-slate-800/50">
         <span class="text-[10px] text-slate-500 uppercase font-bold w-12">RATING</span>
         <input type="range" min="1" max="10" value="${r.rating}" onchange="act.rate('${p}','rating',this.value)" class="flex-1 h-1 bg-slate-700 appearance-none cursor-pointer rounded-full">
@@ -629,23 +622,21 @@ const renderStats = () => {
 const act = {
   toggleBgm: () => {
       const audio = document.getElementById('bgmPlayer');
-      if(!ytPlayer) {
-          // 유튜브 로드 실패 시 오디오 태그라도 제어
-          if(audio) {
-              if(audio.paused) audio.play(); else audio.pause();
-              state.bgm.playing = !audio.paused;
-          }
+      if(audio.paused) {
+          audio.play();
+          state.bgm.playing = true;
       } else {
-          // 유튜브 제어
-          if(ytPlayer.getPlayerState() === 1) ytPlayer.pauseVideo();
-          else ytPlayer.playVideo();
-          state.bgm.playing = (ytPlayer.getPlayerState() !== 1);
+          audio.pause();
+          state.bgm.playing = false;
       }
       app.save();
       app.updateBgmIcon();
   },
   setVolume: (v) => {
-      if(ytPlayer) ytPlayer.setVolume(v);
+      const audio = document.getElementById('bgmPlayer');
+      // Slider is 0-100, audio.volume is 0-1
+      const vol = v / 100;
+      audio.volume = vol;
       state.bgm.vol = v;
       app.save();
   },
@@ -835,9 +826,12 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
   if(t) act[t.dataset.act](e);
   
-  // 첫 클릭 시 유튜브 오디오 강제 재생 (브라우저 정책 대응)
-  if(state.bgm && state.bgm.playing && ytPlayer && ytPlayer.getPlayerState() !== 1) {
-      ytPlayer.playVideo();
+  // 첫 클릭 시 오디오 강제 재생 (브라우저 정책 대응)
+  if(state.bgm && state.bgm.playing) {
+      const audio = document.getElementById('bgmPlayer');
+      if(audio && audio.paused) {
+          audio.play().then(() => {}).catch(err => {});
+      }
   }
 });
 
@@ -879,5 +873,3 @@ app.init();
 </script>
 </body>
 </html>
-
-
