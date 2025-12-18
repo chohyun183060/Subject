@@ -41,7 +41,7 @@
   <div class="flex items-center gap-4">
       <h1 class="text-xl font-black text-[#C8AA6E] cursor-pointer tracking-widest uppercase" onclick="app.nav('home')">The Way of Nordnam</h1>
       <div class="flex items-center gap-2 pl-4 border-l border-slate-800">
-          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="BGM (LCK 2024 Theme)">
+          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="배경음악 켜기/끄기">
               <span class="text-xs">♪</span>
           </button>
           <input type="range" id="bgmVol" min="0" max="100" step="1" oninput="act.setVolume(this.value)" class="w-20 accent-[#C8AA6E] h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" title="볼륨 조절">
@@ -55,7 +55,10 @@
   </nav>
 </header>
 
-<div id="yt-player" class="absolute -top-full left-0 w-1 h-1 overflow-hidden opacity-0 pointer-events-none"></div>
+<audio id="bgmPlayer" loop>
+    <source src="2024 LCK 밴픽 브금  LCK Champ Select BGM - 황제리.mp3" type="audio/mpeg">
+    <source src="bgm.mp3" type="audio/mpeg">
+</audio>
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
 
@@ -69,7 +72,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v28_yt_api', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v33_relative_team_tracking', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -86,39 +89,6 @@ const TEAM_PRESETS = [
 
 let state={matches:[],currId:null,view:'home',players:[],bgm:{vol:50, playing:true}}, champs=[], ver='14.24.1';
 let ui = { swap: null };
-let ytPlayer = null;
-
-// YouTube API 로드
-const tag = document.createElement('script');
-tag.src = "https://www.youtube.com/iframe_api";
-const firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-function onYouTubeIframeAPIReady() {
-  ytPlayer = new YT.Player('yt-player', {
-    height: '200',
-    width: '200',
-    videoId: 'HdkDii-yt_U', // 2024 LCK 밴픽 브금 ID
-    playerVars: {
-      'autoplay': 0, // 자동 재생은 브라우저가 막으므로 0으로 시작
-      'controls': 0,
-      'loop': 1,
-      'playlist': 'HdkDii-yt_U',
-      'playsinline': 1
-    },
-    events: {
-      'onReady': onPlayerReady
-    }
-  });
-}
-
-function onPlayerReady(event) {
-    if(state.bgm) {
-        event.target.setVolume(state.bgm.vol);
-        // 준비 완료 후 클릭 이벤트를 기다림
-        app.updateBgmIcon();
-    }
-}
 
 const getImgUrl = (id, type='square') => {
     if(id === 'FiddleSticks') id = 'Fiddlesticks';
@@ -149,31 +119,37 @@ const app = {
         state = { ...state, ...loaded };
     }
     
-    // BGM 상태 복원
-    if(!state.bgm) state.bgm = {vol:50, playing:true};
+    const audio = document.getElementById('bgmPlayer');
     const volInput = document.getElementById('bgmVol');
-    if(volInput) volInput.value = state.bgm.vol;
+    if(!state.bgm) state.bgm = {vol:50, playing:true};
+    
+    if(audio && volInput) {
+        audio.volume = state.bgm.vol / 100;
+        volInput.value = state.bgm.vol;
+    }
 
+    app.updateBgmIcon();
     app.render();
     
-    // 안내 메시지
-    setTimeout(() => {
-        app.toast('🔊 화면을 클릭하면 LCK BGM이 재생됩니다.');
-    }, 1000);
+    if(state.bgm.playing) {
+        audio.play().catch(() => {
+            app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
+        });
+    }
   },
   
   save: () => { localStorage.setItem(KEY, JSON.stringify(state)); app.render(); },
   
   updateBgmIcon: () => {
       const btn = document.getElementById('bgmBtn');
-      if(!btn) return;
-      // 플레이어가 로드되었고 재생 중인 경우 (상태 1: 재생중)
-      const isPlaying = ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 1;
-      
-      btn.innerHTML = isPlaying
-        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
-      btn.className = isPlaying ? "text-[#C8AA6E] hover:text-white transition-colors" : "text-slate-500 hover:text-white transition-colors";
+      const audio = document.getElementById('bgmPlayer');
+      const isPlaying = audio && !audio.paused; 
+      if(btn) {
+          btn.innerHTML = isPlaying
+            ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
+            : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+          btn.className = isPlaying ? "text-[#C8AA6E] hover:text-white transition-colors" : "text-slate-500 hover:text-white transition-colors";
+      }
   },
 
   toast: (msg) => { const t=document.getElementById('toast'); t.innerText=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),3000); },
@@ -252,7 +228,7 @@ const renderHome = () => `
     <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden">
       <div class="absolute inset-0 bg-[url('https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/bg-pattern.png')] opacity-10"></div>
       <h2 class="text-4xl font-black text-[#f0e6d2] uppercase tracking-widest z-10 drop-shadow-lg">LoL Fearless Draft</h2>
-      <p class="text-sm text-[#a09b8c] z-10">양기훈의 존재의의는 타인에게 약탈 당함에 있다</p>
+      <p class="text-sm text-[#a09b8c] z-10">5전 3선승제 · 피어리스 밴픽 시뮬레이터</p>
       <button data-act="new" class="mt-2 px-10 py-4 bg-[#C8AA6E] text-[#010a13] font-bold text-xl uppercase tracking-wider hover:bg-[#d6b97e] transition-all shadow-[0_0_20px_rgba(200,170,110,0.4)] z-10 transform hover:scale-105">시리즈 시작</button>
     </div>
     <div class="p-6 bg-[#091428] border border-slate-800">
@@ -286,11 +262,9 @@ function getScore(match) {
     const currentRed = match.red.name;
     series.forEach(m => {
         if (m.result?.win === 'BLUE') {
-            if (m.blue.name === currentBlue) blueWins++;
-            else if (m.blue.name === currentRed) redWins++;
+            if (m.blue.name === match.blue.name) blueWins++; else if (m.blue.name === match.red.name) redWins++;
         } else if (m.result?.win === 'RED') {
-            if (m.red.name === currentBlue) blueWins++;
-            else if (m.red.name === currentRed) redWins++;
+            if (m.red.name === match.blue.name) blueWins++; else if (m.red.name === match.red.name) redWins++;
         }
     });
     return { blue: blueWins, red: redWins };
@@ -345,19 +319,98 @@ const renderDraft = (m) => {
   const isDone = m.draft.idx >= DRAFT_STEPS.length;
   const currentStep = DRAFT_STEPS[m.draft.idx];
   const currentSide = currentStep ? currentStep.s : null;
-  const locked = app.getLocked(m, currentSide);
+  const locked = app.getLocked(m, currentSide); 
   
   const taken = new Set([...m.draft.bans.BLUE, ...m.draft.bans.RED, ...m.draft.picks.BLUE, ...m.draft.picks.RED]);
   
-  const champGrid = champs.map(c => {
-    const isLocked = locked.has(c.id), isTaken = taken.has(c.id);
-    const disabled = isLocked || isTaken || isDone;
-    return `<div onclick="act.pick('${c.id}')" class="relative group w-[54px] h-[54px] bg-[#010a13] border border-slate-700 cursor-pointer hover:border-[#C8AA6E] transition-colors ${disabled?'opacity-20 grayscale pointer-events-none':''}">
-      <img src="${getImgUrl(c.id, 'square')}" class="w-full h-full object-cover" onerror="this.src='https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/-1.png'">
-      ${isLocked ? '<div class="absolute inset-0 flex items-center justify-center bg-black/80 text-amber-500 font-bold text-[10px]">LOCK</div>' : ''}
+  // Fearless 리스트 생성 (진영 정보 + 팀 이름 포함)
+  const prevMatches = state.matches.filter(x => x.seriesId === m.seriesId && x.gameNo < m.gameNo);
+  const fearlessDisplayData = []; 
+  const seenInFearless = new Set();
+
+  prevMatches.forEach(pm => {
+      // BLUE팀 픽 확인
+      pm.draft.picks.BLUE.forEach(cId => {
+          if (locked.has(cId) && !seenInFearless.has(cId)) {
+              // 원래 픽했던 팀 이름
+              const originTeamName = pm.blue.name;
+              // 그 팀이 '지금' 어느 진영인지 확인
+              let currentSideForThisTeam = 'UNKNOWN';
+              if (m.blue.name === originTeamName) currentSideForThisTeam = 'BLUE';
+              else if (m.red.name === originTeamName) currentSideForThisTeam = 'RED';
+              
+              fearlessDisplayData.push({ id: cId, side: currentSideForThisTeam, originName: originTeamName });
+              seenInFearless.add(cId);
+          }
+      });
+      // RED팀 픽 확인
+      pm.draft.picks.RED.forEach(cId => {
+          if (locked.has(cId) && !seenInFearless.has(cId)) {
+              const originTeamName = pm.red.name;
+              let currentSideForThisTeam = 'UNKNOWN';
+              if (m.blue.name === originTeamName) currentSideForThisTeam = 'BLUE';
+              else if (m.red.name === originTeamName) currentSideForThisTeam = 'RED';
+
+              fearlessDisplayData.push({ id: cId, side: currentSideForThisTeam, originName: originTeamName });
+              seenInFearless.add(cId);
+          }
+      });
+  });
+
+  // 사용 가능한 챔피언 리스트 (Fearless 밴 제외)
+  const availableList = champs.filter(c => !locked.has(c.id)); 
+
+  const champGrid = availableList.map(c => {
+    const isTaken = taken.has(c.id);
+    const disabled = isTaken || isDone;
+    let containerClass = `relative group w-[54px] h-[54px] bg-[#010a13] border border-slate-700 cursor-pointer hover:border-[#C8AA6E] transition-colors`;
+    if(disabled) containerClass += ' opacity-20 grayscale pointer-events-none';
+    
+    return `<div onclick="${disabled ? '' : `act.pick('${c.id}')`}" class="${containerClass}">
+      <img src="${getImgUrl(c.id, 'square')}" class="w-full h-full object-cover">
+      ${isTaken ? '<div class="absolute inset-0 flex items-center justify-center bg-black/60 font-bold text-white text-xs">PICK</div>' : ''}
       <div class="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 whitespace-nowrap z-50 border border-[#C8AA6E]">${c.name}</div>
     </div>`
   }).join('');
+
+  // 피어리스 존 (상단 배치 - 현재 진영 기준 색상 + 팀 이름 표시)
+  const fearlessHtml = fearlessDisplayData.length > 0 ? `
+    <div class="bg-[#050b14] border-b border-slate-800 p-2 shrink-0">
+        <div class="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-2">
+            <span>⛔ FEARLESS BANNED (${fearlessDisplayData.length})</span>
+        </div>
+        <div class="flex gap-1 overflow-x-auto scrollbar pb-1 h-12 items-center">
+            ${fearlessDisplayData.map(d => {
+                const isBlueSideNow = d.side === 'BLUE';
+                const isRedSideNow = d.side === 'RED';
+                // 팀 진영을 못 찾으면(이름 변경 등) 회색 처리
+                let borderColor = 'border-slate-600';
+                let bgColor = 'bg-slate-800';
+                let textColor = 'text-slate-300';
+                
+                if (isBlueSideNow) {
+                    borderColor = 'border-blue-500';
+                    bgColor = 'bg-blue-900/30';
+                    textColor = 'text-blue-300';
+                } else if (isRedSideNow) {
+                    borderColor = 'border-red-500';
+                    bgColor = 'bg-red-900/30';
+                    textColor = 'text-red-300';
+                }
+
+                const cName = champs.find(c=>c.id===d.id)?.name || d.id;
+                // 팀 이름이 너무 길면 잘라내기
+                const shortTeamName = d.originName.length > 6 ? d.originName.substring(0,5)+'..' : d.originName;
+                
+                return `
+                <div class="w-9 h-9 relative border-2 ${borderColor} ${bgColor} group shrink-0 rounded-sm overflow-hidden" title="${cName} (Picked by ${d.originName})">
+                    <img src="${getImgUrl(d.id, 'square')}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all">
+                    <div class="absolute bottom-0 right-0 left-0 bg-black/80 text-[7px] font-bold ${textColor} text-center truncate px-0.5 leading-tight">${shortTeamName}</div>
+                </div>
+            `}).join('')}
+        </div>
+    </div>
+  ` : '';
 
   return `
     <div class="flex flex-col h-full bg-[#010a13]">
@@ -365,6 +418,7 @@ const renderDraft = (m) => {
       <div class="flex-1 flex overflow-hidden">
         ${renderTeamCol(m, 'BLUE')}
         <div class="flex-1 bg-[#010a13] border-x border-slate-800 flex flex-col min-w-[340px]">
+          ${fearlessHtml}
           <div class="p-3 border-b border-slate-800">
             <input type="text" placeholder="챔피언 검색..." oninput="act.filter(this.value)" class="w-full bg-[#091428] border border-slate-600 p-2 text-sm text-[#f0e6d2] focus:outline-none focus:border-[#C8AA6E] placeholder-slate-600 uppercase tracking-wide">
           </div>
@@ -378,6 +432,7 @@ const renderDraft = (m) => {
   `;
 };
 
+// ... (renderTeamCol, renderDamageGraph, renderReport, renderStats, act 등 나머지 기존 코드와 동일)
 const renderTeamCol = (m, side) => {
   const isB = side==='BLUE';
   const t = isB ? m.blue : m.red;
@@ -554,7 +609,6 @@ const renderReport = (m) => {
             </select>
          </div>
       </div>
-      
       <div class="grid grid-cols-4 gap-2 text-sm items-center">
         <div class="col-span-3 flex gap-1">
             <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.k}" onchange="act.rate('${p}','k',this.value)" placeholder="K">
@@ -563,14 +617,12 @@ const renderReport = (m) => {
         </div>
         <div class="text-[10px] text-slate-500 text-center font-bold">KDA</div>
       </div>
-
       <div class="flex gap-2 text-sm items-center">
         <div class="flex-1">
             <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.damage}" onchange="act.rate('${p}','damage',this.value)" placeholder="Damage">
         </div>
         <span class="text-[10px] text-slate-500 w-8 text-center font-bold">DMG</span>
       </div>
-
       <div class="flex items-center gap-2 mt-1 pt-2 border-t border-slate-800/50">
         <span class="text-[10px] text-slate-500 uppercase font-bold w-12">RATING</span>
         <input type="range" min="1" max="10" value="${r.rating}" onchange="act.rate('${p}','rating',this.value)" class="flex-1 h-1 bg-slate-700 appearance-none cursor-pointer rounded-full">
@@ -645,19 +697,23 @@ const renderStats = () => {
 
 const act = {
   toggleBgm: () => {
-      if(!ytPlayer) return;
-      if(ytPlayer.getPlayerState() === 1) { // 재생 중이면
-          ytPlayer.pauseVideo();
-          state.bgm.playing = false;
-      } else {
-          ytPlayer.playVideo();
-          state.bgm.playing = true;
+      const audio = document.getElementById('bgmPlayer');
+      if(audio) {
+          if(audio.paused) {
+              audio.play();
+              state.bgm.playing = true;
+          } else {
+              audio.pause();
+              state.bgm.playing = false;
+          }
       }
       app.save();
       app.updateBgmIcon();
   },
   setVolume: (v) => {
-      if(ytPlayer) ytPlayer.setVolume(v);
+      const audio = document.getElementById('bgmPlayer');
+      const vol = v / 100;
+      if(audio) audio.volume = vol;
       state.bgm.vol = v;
       app.save();
   },
@@ -859,9 +915,12 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
   if(t) act[t.dataset.act](e);
   
-  // 첫 클릭 시 유튜브 오디오 강제 재생 (브라우저 정책 대응)
-  if(state.bgm && state.bgm.playing && ytPlayer && ytPlayer.getPlayerState() !== 1) {
-      ytPlayer.playVideo();
+  // 첫 클릭 시 오디오 강제 재생 (브라우저 정책 대응)
+  if(state.bgm && state.bgm.playing) {
+      const audio = document.getElementById('bgmPlayer');
+      if(audio && audio.paused) {
+          audio.play().then(() => {}).catch(err => {});
+      }
   }
 });
 
@@ -903,4 +962,3 @@ app.init();
 </script>
 </body>
 </html>
-
