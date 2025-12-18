@@ -40,11 +40,18 @@
 <header class="flex justify-between items-center px-6 py-3 border-b border-slate-800 bg-[#010a13] z-20 shrink-0">
   <div class="flex items-center gap-4">
       <h1 class="text-xl font-black text-[#C8AA6E] cursor-pointer tracking-widest uppercase" onclick="app.nav('home')">The Way of Nordnam</h1>
+      
       <div class="flex items-center gap-2 pl-4 border-l border-slate-800">
-          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="배경음악 켜기/끄기">
-              <span class="text-xs">♪</span>
+          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="재생/일시정지">
+              <span class="text-xs">▶</span>
           </button>
-          <input type="range" id="bgmVol" min="0" max="100" step="1" oninput="act.setVolume(this.value)" class="w-20 accent-[#C8AA6E] h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" title="볼륨 조절">
+          
+          <input type="range" id="bgmVol" min="0" max="100" step="1" oninput="act.setVolume(this.value)" class="w-20 accent-[#C8AA6E] h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" title="볼륨">
+          
+          <label class="cursor-pointer text-slate-400 hover:text-[#C8AA6E] transition-colors ml-2" title="음악 파일 직접 선택 (소리가 안 날 때 사용)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              <input type="file" id="bgmInput" accept="audio/*" class="hidden" onchange="act.loadBgmFile(this)">
+          </label>
       </div>
   </div>
   <nav class="flex gap-2">
@@ -56,8 +63,8 @@
 </header>
 
 <audio id="bgmPlayer" loop>
-    <source src="2024 LCK 밴픽 브금  LCK Champ Select BGM - 황제리.mp3" type="audio/mpeg">
     <source src="bgm.mp3" type="audio/mpeg">
+    <source src="2024 LCK 밴픽 브금  LCK Champ Select BGM - 황제리.mp3" type="audio/mpeg">
 </audio>
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
@@ -72,7 +79,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v33_relative_team_tracking', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v34_final_music_fix', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -131,10 +138,15 @@ const app = {
     app.updateBgmIcon();
     app.render();
     
+    // 자동 재생 시도
     if(state.bgm.playing) {
-        audio.play().catch(() => {
-            app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
-        });
+        const p = audio.play();
+        if(p) {
+            p.catch(e => {
+                console.log('Autoplay blocked');
+                // 화면 클릭 시 재생되도록 유도 (조용히)
+            });
+        }
     }
   },
   
@@ -323,7 +335,6 @@ const renderDraft = (m) => {
   
   const taken = new Set([...m.draft.bans.BLUE, ...m.draft.bans.RED, ...m.draft.picks.BLUE, ...m.draft.picks.RED]);
   
-  // Fearless 리스트 생성 (진영 정보 + 팀 이름 포함)
   const prevMatches = state.matches.filter(x => x.seriesId === m.seriesId && x.gameNo < m.gameNo);
   const fearlessDisplayData = []; 
   const seenInFearless = new Set();
@@ -332,13 +343,10 @@ const renderDraft = (m) => {
       // BLUE팀 픽 확인
       pm.draft.picks.BLUE.forEach(cId => {
           if (locked.has(cId) && !seenInFearless.has(cId)) {
-              // 원래 픽했던 팀 이름
               const originTeamName = pm.blue.name;
-              // 그 팀이 '지금' 어느 진영인지 확인
               let currentSideForThisTeam = 'UNKNOWN';
               if (m.blue.name === originTeamName) currentSideForThisTeam = 'BLUE';
               else if (m.red.name === originTeamName) currentSideForThisTeam = 'RED';
-              
               fearlessDisplayData.push({ id: cId, side: currentSideForThisTeam, originName: originTeamName });
               seenInFearless.add(cId);
           }
@@ -350,14 +358,12 @@ const renderDraft = (m) => {
               let currentSideForThisTeam = 'UNKNOWN';
               if (m.blue.name === originTeamName) currentSideForThisTeam = 'BLUE';
               else if (m.red.name === originTeamName) currentSideForThisTeam = 'RED';
-
               fearlessDisplayData.push({ id: cId, side: currentSideForThisTeam, originName: originTeamName });
               seenInFearless.add(cId);
           }
       });
   });
 
-  // 사용 가능한 챔피언 리스트 (Fearless 밴 제외)
   const availableList = champs.filter(c => !locked.has(c.id)); 
 
   const champGrid = availableList.map(c => {
@@ -373,7 +379,7 @@ const renderDraft = (m) => {
     </div>`
   }).join('');
 
-  // 피어리스 존 (상단 배치 - 현재 진영 기준 색상 + 팀 이름 표시)
+  // 피어리스 존 (상단 배치)
   const fearlessHtml = fearlessDisplayData.length > 0 ? `
     <div class="bg-[#050b14] border-b border-slate-800 p-2 shrink-0">
         <div class="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-2">
@@ -383,7 +389,7 @@ const renderDraft = (m) => {
             ${fearlessDisplayData.map(d => {
                 const isBlueSideNow = d.side === 'BLUE';
                 const isRedSideNow = d.side === 'RED';
-                // 팀 진영을 못 찾으면(이름 변경 등) 회색 처리
+                
                 let borderColor = 'border-slate-600';
                 let bgColor = 'bg-slate-800';
                 let textColor = 'text-slate-300';
@@ -399,7 +405,6 @@ const renderDraft = (m) => {
                 }
 
                 const cName = champs.find(c=>c.id===d.id)?.name || d.id;
-                // 팀 이름이 너무 길면 잘라내기
                 const shortTeamName = d.originName.length > 6 ? d.originName.substring(0,5)+'..' : d.originName;
                 
                 return `
@@ -432,7 +437,6 @@ const renderDraft = (m) => {
   `;
 };
 
-// ... (renderTeamCol, renderDamageGraph, renderReport, renderStats, act 등 나머지 기존 코드와 동일)
 const renderTeamCol = (m, side) => {
   const isB = side==='BLUE';
   const t = isB ? m.blue : m.red;
@@ -696,6 +700,18 @@ const renderStats = () => {
 };
 
 const act = {
+  loadBgmFile: (input) => {
+      const file = input.files[0];
+      if(!file) return;
+      const audio = document.getElementById('bgmPlayer');
+      const url = URL.createObjectURL(file);
+      audio.src = url;
+      audio.play().then(() => {
+          state.bgm.playing = true;
+          app.updateBgmIcon();
+          app.toast('BGM 로드 완료');
+      }).catch(e => console.log(e));
+  },
   toggleBgm: () => {
       const audio = document.getElementById('bgmPlayer');
       if(audio) {
@@ -850,8 +866,7 @@ const act = {
     const m = app.getMatch();
     const step = DRAFT_STEPS[m.draft.idx];
     if(!step) return;
-    const currentSide = step.s;
-    const locked = app.getLocked(m, currentSide);
+    const locked = app.getLocked(m, step.s);
     const taken = new Set([...m.draft.bans.BLUE, ...m.draft.bans.RED, ...m.draft.picks.BLUE, ...m.draft.picks.RED]);
     
     if(locked.has(id)) { app.toast('피어리스 밴 된 챔피언입니다.'); return; }
