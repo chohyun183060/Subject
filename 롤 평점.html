@@ -70,7 +70,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v23_mp3_local', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v24_hard_fearless', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -117,23 +117,17 @@ const app = {
         state = { ...state, ...loaded };
     }
     
-    // BGM 설정 초기화
     const audio = document.getElementById('bgmPlayer');
     const volInput = document.getElementById('bgmVol');
-    
     if(!state.bgm) state.bgm = {vol:50, playing:true};
-    
-    // 볼륨 설정 (0 ~ 1)
     audio.volume = state.bgm.vol / 100;
     volInput.value = state.bgm.vol;
 
     app.updateBgmIcon();
     app.render();
     
-    // 자동 재생 시도 (정책상 막히면 클릭 유도)
     if(state.bgm.playing) {
         audio.play().catch(() => {
-            console.log('Autoplay blocked. Waiting for interaction.');
             app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
         });
     }
@@ -145,10 +139,9 @@ const app = {
       const btn = document.getElementById('bgmBtn');
       const audio = document.getElementById('bgmPlayer');
       const isPlaying = !audio.paused; 
-      
       btn.innerHTML = isPlaying
-        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>` // 일시정지
-        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`; // 재생
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
       btn.className = isPlaying ? "text-[#C8AA6E] hover:text-white transition-colors" : "text-slate-500 hover:text-white transition-colors";
   },
 
@@ -159,12 +152,17 @@ const app = {
   createMatch: (seriesId=null, gNo=1, pre={}) => {
     const id = Math.random().toString(36).slice(2);
     let sTitle = pre.seriesTitle || '';
+    let isHard = pre.hardFearless || false;
     if (seriesId) {
         const exist = state.matches.find(m => m.seriesId === seriesId);
-        if (exist) sTitle = exist.seriesTitle || '';
+        if (exist) {
+            sTitle = exist.seriesTitle || '';
+            isHard = exist.hardFearless || false; // 시리즈 설정 따라감
+        }
     }
     const m = {
-      id, seriesId: seriesId||id, gameNo: gNo, seriesTitle: sTitle, created: new Date().toISOString(), status:'drafting',
+      id, seriesId: seriesId||id, gameNo: gNo, seriesTitle: sTitle, hardFearless: isHard,
+      created: new Date().toISOString(), status:'drafting',
       blue:{name:pre.bN||'BLUE', p:pre.bP||Array(5).fill('')}, red:{name:pre.rN||'RED', p:pre.rP||Array(5).fill('')},
       draft:{idx:0, acts:[], bans:{BLUE:[],RED:[]}, picks:{BLUE:[],RED:[]}}, ratings:{}, result:null,
       potm: null, nordnam: null
@@ -175,11 +173,28 @@ const app = {
     state.matches.unshift(m); state.currId=id; app.nav('draft'); app.save();
   },
   
-  getLocked: (m) => {
+  // 피어리스 밴 로직 (하드/소프트)
+  getLocked: (m, currentSide) => {
     const locked = new Set();
-    state.matches.filter(x=>x.seriesId===m.seriesId && x.gameNo < m.gameNo).forEach(x=>{
-      [...x.draft.bans.BLUE, ...x.draft.bans.RED, ...x.draft.picks.BLUE, ...x.draft.picks.RED].forEach(c=>locked.add(c));
-    });
+    // 같은 시리즈의 이전 경기들
+    const prevMatches = state.matches.filter(x => x.seriesId === m.seriesId && x.gameNo < m.gameNo);
+    
+    if (m.hardFearless) {
+        // [하드 모드] 모든 픽 잠금
+        prevMatches.forEach(x => {
+            [...x.draft.picks.BLUE, ...x.draft.picks.RED].forEach(c => locked.add(c));
+        });
+    } else {
+        // [소프트 모드] 팀별 픽 잠금 (팀 이름 추적)
+        if (!currentSide) return locked; // 사이드 정보 없으면 빈 셋 (혹은 전체 뷰용)
+        
+        const myTeamName = m[currentSide === 'BLUE' ? 'blue' : 'red'].name;
+        
+        prevMatches.forEach(x => {
+            if (x.blue.name === myTeamName) x.draft.picks.BLUE.forEach(c => locked.add(c));
+            if (x.red.name === myTeamName) x.draft.picks.RED.forEach(c => locked.add(c));
+        });
+    }
     return locked;
   },
 
@@ -191,7 +206,6 @@ const app = {
     else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
     else if(state.view==='stats') root.innerHTML = renderStats();
     
-    // UI 업데이트 후 BGM 상태 반영
     const volInput = document.getElementById('bgmVol');
     if(volInput && state.bgm) volInput.value = state.bgm.vol;
     app.updateBgmIcon();
@@ -213,7 +227,7 @@ const renderHome = () => `
     <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden">
       <div class="absolute inset-0 bg-[url('https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/bg-pattern.png')] opacity-10"></div>
       <h2 class="text-4xl font-black text-[#f0e6d2] uppercase tracking-widest z-10 drop-shadow-lg">LoL Fearless Draft</h2>
-      <p class="text-sm text-[#a09b8c] z-10">인간의 욕심은 돼지와 같고 양기훈의 존재의의는 타인에게 약탈 당함에 있다</p>
+      <p class="text-sm text-[#a09b8c] z-10">5전 3선승제 · 피어리스 밴픽 시뮬레이터</p>
       <button data-act="new" class="mt-2 px-10 py-4 bg-[#C8AA6E] text-[#010a13] font-bold text-xl uppercase tracking-wider hover:bg-[#d6b97e] transition-all shadow-[0_0_20px_rgba(200,170,110,0.4)] z-10 transform hover:scale-105">시리즈 시작</button>
     </div>
     <div class="p-6 bg-[#091428] border border-slate-800">
@@ -223,7 +237,8 @@ const renderHome = () => `
           <div>
             <div class="flex items-center gap-2 mb-1">
               <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 text-slate-400 rounded border border-slate-700 font-mono">${m.seriesTitle || 'Untitled Series'}</span>
-              <span class="text-xs text-[#a09b8c] font-mono">${m.created.split('T')[0]}</span>
+              <span class="text-xs bg-slate-700 px-1.5 py-0.5 text-slate-300 ml-1 rounded">${m.hardFearless ? 'HARD' : 'SOFT'}</span>
+              <span class="text-xs text-[#a09b8c] font-mono ml-2">${m.created.split('T')[0]}</span>
               <span class="text-xs bg-slate-800 px-1.5 py-0.5 text-slate-300">Game ${m.gameNo}</span>
             </div>
             <div class="font-bold text-[#f0e6d2]"><span class="text-blue-400">${m.blue.name}</span> vs <span class="text-red-400">${m.red.name}</span></div>
@@ -261,13 +276,18 @@ const renderMatchHeader = (match) => {
     const isDone = match.draft.idx >= DRAFT_STEPS.length;
     const score = getScore(match);
     const title = match.seriesTitle || 'Untitled Series';
+    const modeBadge = match.hardFearless ? 
+        '<span class="px-2 py-0.5 rounded bg-red-900/50 border border-red-700 text-[10px] text-red-200 font-bold">HARD FEARLESS</span>' : 
+        '<span class="px-2 py-0.5 rounded bg-blue-900/50 border border-blue-700 text-[10px] text-blue-200 font-bold">SOFT FEARLESS</span>';
 
     return `
       <div class="flex flex-col border-b border-slate-800 bg-[#091428] relative shrink-0">
         <div class="flex justify-between items-center px-6 py-3 relative z-10">
-            <div class="font-mono text-[#a09b8c] text-sm w-1/3 truncate">
-                <span class="font-bold text-[#C8AA6E] mr-2">${title}</span>
-                GAME ${match.gameNo} <span class="mx-2 text-slate-600">|</span> SERIES ${match.seriesId.slice(0,4)}
+            <div class="font-mono text-[#a09b8c] text-sm w-1/3 truncate flex items-center gap-2">
+                <span class="font-bold text-[#C8AA6E]">${title}</span>
+                ${modeBadge}
+                <span class="text-slate-500">|</span>
+                <span>GAME ${match.gameNo}</span>
             </div>
             <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6">
                 <div class="text-right">
@@ -298,7 +318,11 @@ const renderMatchHeader = (match) => {
 
 const renderDraft = (m) => {
   const isDone = m.draft.idx >= DRAFT_STEPS.length;
-  const locked = app.getLocked(m);
+  const currentStep = DRAFT_STEPS[m.draft.idx];
+  // 현재 픽 순서인 팀 기준으로 잠긴 챔피언 확인
+  const currentSide = currentStep ? currentStep.s : null;
+  const locked = app.getLocked(m, currentSide);
+  
   const taken = new Set([...m.draft.bans.BLUE, ...m.draft.bans.RED, ...m.draft.picks.BLUE, ...m.draft.picks.RED]);
   
   const champGrid = champs.map(c => {
@@ -330,6 +354,7 @@ const renderDraft = (m) => {
   `;
 };
 
+// ... (renderTeamCol, renderDamageGraph, renderReport, renderStats 생략 - 변경 없음)
 const renderTeamCol = (m, side) => {
   const isB = side==='BLUE';
   const t = isB ? m.blue : m.red;
@@ -397,7 +422,6 @@ const renderTeamCol = (m, side) => {
   `;
 };
 
-// 딜량 그래프
 const renderDamageGraph = (m) => {
     const bluePlayers = (m.blue.p || []).filter(Boolean);
     const redPlayers  = (m.red.p || []).filter(Boolean);
@@ -686,7 +710,10 @@ const act = {
         </div>` : ''}
         
         <div class="flex justify-center my-2">
-          <button onclick="act.swapInput()" class="px-4 py-2 bg-slate-800 border border-slate-600 hover:border-[#C8AA6E] text-[#C8AA6E] text-xs font-bold uppercase tracking-widest">⇄ SWAP SIDES</button>
+          <label class="flex items-center gap-2 text-xs font-bold text-amber-400 bg-slate-800 px-3 py-1.5 rounded cursor-pointer border border-slate-600 hover:border-amber-400">
+             <input type="checkbox" id="hardMode" class="accent-amber-500"> 하드 피어리스 모드 (이전 모든 픽 금지)
+          </label>
+          <button onclick="act.swapInput()" class="ml-4 px-4 py-1.5 bg-slate-800 border border-slate-600 hover:border-[#C8AA6E] text-[#C8AA6E] text-xs font-bold uppercase tracking-widest">⇄ SWAP SIDES</button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -732,7 +759,9 @@ const act = {
     const rN = document.getElementById('newRN').value.trim() || 'RED';
     const bP = [0,1,2,3,4].map(i => document.getElementById(`newBP${i}`).value.trim());
     const rP = [0,1,2,3,4].map(i => document.getElementById(`newRP${i}`).value.trim());
-    app.createMatch(seriesId, gNo, {bN, rN, bP, rP});
+    const isHard = document.getElementById('hardMode')?.checked || false;
+    
+    app.createMatch(seriesId, gNo, {bN, rN, bP, rP, hardFearless: isHard});
     app.closeModal();
   },
   
@@ -743,9 +772,13 @@ const act = {
     const m = app.getMatch();
     const step = DRAFT_STEPS[m.draft.idx];
     if(!step) return;
-    const locked = app.getLocked(m);
+    const currentSide = step.s;
+    const locked = app.getLocked(m, currentSide);
     const taken = new Set([...m.draft.bans.BLUE, ...m.draft.bans.RED, ...m.draft.picks.BLUE, ...m.draft.picks.RED]);
-    if(locked.has(id) || taken.has(id)) { app.toast('선택 불가 챔피언입니다.'); return; }
+    
+    if(locked.has(id)) { app.toast('피어리스 밴 된 챔피언입니다.'); return; }
+    if(taken.has(id)) { app.toast('이미 선택된 챔피언입니다.'); return; }
+    
     m.draft.acts.push({t:step.t, s:step.s, c:id});
     if(step.t==='ban') m.draft.bans[step.s].push(id); else m.draft.picks[step.s].push(id);
     m.draft.idx++;
@@ -769,9 +802,15 @@ const act = {
     const series = state.matches.filter(x=>x.seriesId===m.seriesId);
     const bW = series.filter(x=>x.result?.win==='BLUE').length;
     const rW = series.filter(x=>x.result?.win==='RED').length;
-    if(bW >=3 || rW >=3) { alert('시리즈 종료!'); app.nav('stats'); }
-    else {
-      act.new(m);
+    
+    // 시리즈 종료 조건 (3선승)
+    if(bW >=3 || rW >=3) { 
+        alert(`시리즈 종료! 승리팀: ${bW>=3 ? 'BLUE' : 'RED'}`); 
+        app.nav('stats'); 
+    } else {
+        // 다음 세트 자동 설정 (패자 선택권 등은 수동으로 처리)
+        // 이전 세트의 설정을 가져와서 모달 띄우기
+        act.new(m);
     }
     app.save();
   },
@@ -805,7 +844,7 @@ document.addEventListener('click', e => {
   if(state.bgm && state.bgm.playing) {
       const audio = document.getElementById('bgmPlayer');
       if(audio && audio.paused) {
-          audio.play().then(() => {}).catch(err => {});
+          audio.play().catch(err => console.log('BGM Autoplay blocked'));
       }
   }
 });
@@ -848,4 +887,3 @@ app.init();
 </script>
 </body>
 </html>
-
