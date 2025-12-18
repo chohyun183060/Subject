@@ -41,8 +41,9 @@
   <div class="flex items-center gap-4">
       <h1 class="text-xl font-black text-[#C8AA6E] cursor-pointer tracking-widest uppercase" onclick="app.nav('home')">The Way of Nordnam</h1>
       <div class="flex items-center gap-2 pl-4 border-l border-slate-800">
-          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="배경음악 켜기/끄기">
-              </button>
+          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="BGM (LCK 2024 Theme)">
+              <span class="text-xs">♪</span>
+          </button>
           <input type="range" id="bgmVol" min="0" max="100" step="1" oninput="act.setVolume(this.value)" class="w-20 accent-[#C8AA6E] h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" title="볼륨 조절">
       </div>
   </div>
@@ -54,10 +55,7 @@
   </nav>
 </header>
 
-<audio id="bgmPlayer" loop>
-    <source src="2024 LCK 밴픽 브금  LCK Champ Select BGM - 황제리.mp3" type="audio/mpeg">
-    <source src="bgm.mp3" type="audio/mpeg">
-</audio>
+<div id="yt-player" class="absolute -top-full left-0 w-1 h-1 overflow-hidden opacity-0 pointer-events-none"></div>
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
 
@@ -71,7 +69,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v27_no_overlay', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v28_yt_api', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -88,6 +86,39 @@ const TEAM_PRESETS = [
 
 let state={matches:[],currId:null,view:'home',players:[],bgm:{vol:50, playing:true}}, champs=[], ver='14.24.1';
 let ui = { swap: null };
+let ytPlayer = null;
+
+// YouTube API 로드
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+const firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+function onYouTubeIframeAPIReady() {
+  ytPlayer = new YT.Player('yt-player', {
+    height: '200',
+    width: '200',
+    videoId: 'HdkDii-yt_U', // 2024 LCK 밴픽 브금 ID
+    playerVars: {
+      'autoplay': 0, // 자동 재생은 브라우저가 막으므로 0으로 시작
+      'controls': 0,
+      'loop': 1,
+      'playlist': 'HdkDii-yt_U',
+      'playsinline': 1
+    },
+    events: {
+      'onReady': onPlayerReady
+    }
+  });
+}
+
+function onPlayerReady(event) {
+    if(state.bgm) {
+        event.target.setVolume(state.bgm.vol);
+        // 준비 완료 후 클릭 이벤트를 기다림
+        app.updateBgmIcon();
+    }
+}
 
 const getImgUrl = (id, type='square') => {
     if(id === 'FiddleSticks') id = 'Fiddlesticks';
@@ -118,43 +149,31 @@ const app = {
         state = { ...state, ...loaded };
     }
     
-    // BGM 설정 초기화
-    const audio = document.getElementById('bgmPlayer');
-    const volInput = document.getElementById('bgmVol');
-    
+    // BGM 상태 복원
     if(!state.bgm) state.bgm = {vol:50, playing:true};
-    
-    // 볼륨 설정 (0 ~ 1)
-    if(audio && volInput) {
-        audio.volume = state.bgm.vol / 100;
-        volInput.value = state.bgm.vol;
-    }
+    const volInput = document.getElementById('bgmVol');
+    if(volInput) volInput.value = state.bgm.vol;
 
-    app.updateBgmIcon();
     app.render();
     
-    // 자동 재생 시도 (정책상 막히면 클릭 유도 메시지만 띄움)
-    if(state.bgm.playing) {
-        audio.play().catch(() => {
-            console.log('Autoplay blocked. Waiting for interaction.');
-            app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
-        });
-    }
+    // 안내 메시지
+    setTimeout(() => {
+        app.toast('🔊 화면을 클릭하면 LCK BGM이 재생됩니다.');
+    }, 1000);
   },
   
   save: () => { localStorage.setItem(KEY, JSON.stringify(state)); app.render(); },
   
   updateBgmIcon: () => {
       const btn = document.getElementById('bgmBtn');
-      const audio = document.getElementById('bgmPlayer');
-      const isPlaying = audio && !audio.paused; 
+      if(!btn) return;
+      // 플레이어가 로드되었고 재생 중인 경우 (상태 1: 재생중)
+      const isPlaying = ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 1;
       
-      if(btn) {
-          btn.innerHTML = isPlaying
-            ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>` // 일시정지
-            : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`; // 재생
-          btn.className = isPlaying ? "text-[#C8AA6E] hover:text-white transition-colors" : "text-slate-500 hover:text-white transition-colors";
-      }
+      btn.innerHTML = isPlaying
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+      btn.className = isPlaying ? "text-[#C8AA6E] hover:text-white transition-colors" : "text-slate-500 hover:text-white transition-colors";
   },
 
   toast: (msg) => { const t=document.getElementById('toast'); t.innerText=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),3000); },
@@ -185,11 +204,22 @@ const app = {
     state.matches.unshift(m); state.currId=id; app.nav('draft'); app.save();
   },
   
-  getLocked: (m) => {
+  getLocked: (m, currentSide) => {
     const locked = new Set();
-    state.matches.filter(x=>x.seriesId===m.seriesId && x.gameNo < m.gameNo).forEach(x=>{
-      [...x.draft.bans.BLUE, ...x.draft.bans.RED, ...x.draft.picks.BLUE, ...x.draft.picks.RED].forEach(c=>locked.add(c));
-    });
+    const prevMatches = state.matches.filter(x => x.seriesId === m.seriesId && x.gameNo < m.gameNo);
+    
+    if (m.hardFearless) {
+        prevMatches.forEach(x => {
+            [...x.draft.picks.BLUE, ...x.draft.picks.RED].forEach(c => locked.add(c));
+        });
+    } else {
+        if (!currentSide) return locked; 
+        const myTeamName = m[currentSide === 'BLUE' ? 'blue' : 'red'].name;
+        prevMatches.forEach(x => {
+            if (x.blue.name === myTeamName) x.draft.picks.BLUE.forEach(c => locked.add(c));
+            if (x.red.name === myTeamName) x.draft.picks.RED.forEach(c => locked.add(c));
+        });
+    }
     return locked;
   },
 
@@ -524,6 +554,7 @@ const renderReport = (m) => {
             </select>
          </div>
       </div>
+      
       <div class="grid grid-cols-4 gap-2 text-sm items-center">
         <div class="col-span-3 flex gap-1">
             <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.k}" onchange="act.rate('${p}','k',this.value)" placeholder="K">
@@ -532,12 +563,14 @@ const renderReport = (m) => {
         </div>
         <div class="text-[10px] text-slate-500 text-center font-bold">KDA</div>
       </div>
+
       <div class="flex gap-2 text-sm items-center">
         <div class="flex-1">
             <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.damage}" onchange="act.rate('${p}','damage',this.value)" placeholder="Damage">
         </div>
         <span class="text-[10px] text-slate-500 w-8 text-center font-bold">DMG</span>
       </div>
+
       <div class="flex items-center gap-2 mt-1 pt-2 border-t border-slate-800/50">
         <span class="text-[10px] text-slate-500 uppercase font-bold w-12">RATING</span>
         <input type="range" min="1" max="10" value="${r.rating}" onchange="act.rate('${p}','rating',this.value)" class="flex-1 h-1 bg-slate-700 appearance-none cursor-pointer rounded-full">
@@ -612,23 +645,19 @@ const renderStats = () => {
 
 const act = {
   toggleBgm: () => {
-      const audio = document.getElementById('bgmPlayer');
-      if(audio) {
-          if(audio.paused) {
-              audio.play();
-              state.bgm.playing = true;
-          } else {
-              audio.pause();
-              state.bgm.playing = false;
-          }
+      if(!ytPlayer) return;
+      if(ytPlayer.getPlayerState() === 1) { // 재생 중이면
+          ytPlayer.pauseVideo();
+          state.bgm.playing = false;
+      } else {
+          ytPlayer.playVideo();
+          state.bgm.playing = true;
       }
       app.save();
       app.updateBgmIcon();
   },
   setVolume: (v) => {
-      const audio = document.getElementById('bgmPlayer');
-      const vol = v / 100;
-      if(audio) audio.volume = vol;
+      if(ytPlayer) ytPlayer.setVolume(v);
       state.bgm.vol = v;
       app.save();
   },
@@ -830,12 +859,9 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
   if(t) act[t.dataset.act](e);
   
-  // 첫 클릭 시 오디오 강제 재생 (브라우저 정책 대응)
-  if(state.bgm && state.bgm.playing) {
-      const audio = document.getElementById('bgmPlayer');
-      if(audio && audio.paused) {
-          audio.play().then(() => {}).catch(err => {});
-      }
+  // 첫 클릭 시 유튜브 오디오 강제 재생 (브라우저 정책 대응)
+  if(state.bgm && state.bgm.playing && ytPlayer && ytPlayer.getPlayerState() !== 1) {
+      ytPlayer.playVideo();
   }
 });
 
