@@ -259,7 +259,7 @@ const renderHome = () => `
             <div class="font-bold text-[#f0e6d2]"><span class="text-blue-400">${m.blue.name}</span> vs <span class="text-red-400">${m.red.name}</span></div>
           </div>
           <div class="flex gap-2">
-            <button data-act="load" data-id="${m.id}" class="text-xs bg-[#1e2328] border border-[#C8AA6E] text-[#C8AA6E] px-4 py-2 hover:bg-[#C8AA6E] hover:text-black transition-colors font-bold">LOAD</button>
+            <button data-act="load" data-id="${m.id}" class="text-xs bg-[#1e2328] border border-[#C8AA6E] text-[#C8AA6E] px-4 py-2 hover:bg-[#C8AA6E] hover:text-black transition-colors font-bold">불러오기</button>
             <button data-act="editTitle" data-id="${m.seriesId}" class="text-xs bg-slate-800 text-slate-300 px-3 py-2 rounded hover:bg-slate-700 transition-colors border border-slate-700">제목</button>
             <button data-act="del" data-id="${m.id}" class="text-xs text-red-900 hover:text-red-500 px-2 font-bold">삭제</button>
           </div>
@@ -879,4 +879,5 @@ app.init();
 </script>
 </body>
 </html>
+
 
