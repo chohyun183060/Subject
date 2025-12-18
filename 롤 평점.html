@@ -41,9 +41,8 @@
   <div class="flex items-center gap-4">
       <h1 class="text-xl font-black text-[#C8AA6E] cursor-pointer tracking-widest uppercase" onclick="app.nav('home')">The Way of Nordnam</h1>
       <div class="flex items-center gap-2 pl-4 border-l border-slate-800">
-          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="BGM (LCK 2024 Draft Theme)">
-              <span class="text-xs">♪</span>
-          </button>
+          <button id="bgmBtn" onclick="act.toggleBgm()" class="text-slate-400 hover:text-[#C8AA6E] transition-colors" title="배경음악 켜기/끄기">
+              </button>
           <input type="range" id="bgmVol" min="0" max="100" step="1" oninput="act.setVolume(this.value)" class="w-20 accent-[#C8AA6E] h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" title="볼륨 조절">
       </div>
   </div>
@@ -55,7 +54,9 @@
   </nav>
 </header>
 
-<div id="yt-player" class="absolute -top-full left-0 w-1 h-1 overflow-hidden opacity-0 pointer-events-none"></div>
+<audio id="bgmPlayer" loop>
+    <source src="bgm.mp3" type="audio/mpeg">
+</audio>
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
 
@@ -69,7 +70,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v21_bgm_2024', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v23_mp3_local', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -86,43 +87,6 @@ const TEAM_PRESETS = [
 
 let state={matches:[],currId:null,view:'home',players:[],bgm:{vol:50, playing:true}}, champs=[], ver='14.24.1';
 let ui = { swap: null };
-let ytPlayer = null;
-
-// YouTube API 로드
-const tag = document.createElement('script');
-tag.src = "https://www.youtube.com/iframe_api";
-const firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-function onYouTubeIframeAPIReady() {
-  ytPlayer = new YT.Player('yt-player', {
-    height: '200',
-    width: '200',
-    videoId: 'HdkDii-yt_U', // 2024 LCK 밴픽 브금으로 변경됨
-    playerVars: {
-      'autoplay': 0,
-      'controls': 0,
-      'loop': 1,
-      'playlist': 'HdkDii-yt_U' // 루프를 위해 필요
-    },
-    events: {
-      'onReady': onPlayerReady
-    }
-  });
-}
-
-function onPlayerReady(event) {
-    if(state.bgm) {
-        event.target.setVolume(state.bgm.vol);
-        if(state.bgm.playing) {
-            const p = event.target.playVideo();
-            if (p && p.catch) {
-                p.catch(() => { /* 자동재생 막힘, 클릭 시 재생됨 */ });
-            }
-        }
-    }
-    app.updateBgmIcon();
-}
 
 const getImgUrl = (id, type='square') => {
     if(id === 'FiddleSticks') id = 'Fiddlesticks';
@@ -153,28 +117,38 @@ const app = {
         state = { ...state, ...loaded };
     }
     
-    if(!state.bgm) state.bgm = {vol:50, playing:true};
+    // BGM 설정 초기화
+    const audio = document.getElementById('bgmPlayer');
     const volInput = document.getElementById('bgmVol');
-    if(volInput) volInput.value = state.bgm.vol;
+    
+    if(!state.bgm) state.bgm = {vol:50, playing:true};
+    
+    // 볼륨 설정 (0 ~ 1)
+    audio.volume = state.bgm.vol / 100;
+    volInput.value = state.bgm.vol;
 
+    app.updateBgmIcon();
     app.render();
     
-    setTimeout(() => {
-        if(!ytPlayer || ytPlayer.getPlayerState() !== 1) {
+    // 자동 재생 시도 (정책상 막히면 클릭 유도)
+    if(state.bgm.playing) {
+        audio.play().catch(() => {
+            console.log('Autoplay blocked. Waiting for interaction.');
             app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
-        }
-    }, 1000);
+        });
+    }
   },
   
   save: () => { localStorage.setItem(KEY, JSON.stringify(state)); app.render(); },
   
   updateBgmIcon: () => {
       const btn = document.getElementById('bgmBtn');
-      if(!btn) return;
-      const isPlaying = state.bgm.playing;
+      const audio = document.getElementById('bgmPlayer');
+      const isPlaying = !audio.paused; 
+      
       btn.innerHTML = isPlaying
-        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>` // 일시정지
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`; // 재생
       btn.className = isPlaying ? "text-[#C8AA6E] hover:text-white transition-colors" : "text-slate-500 hover:text-white transition-colors";
   },
 
@@ -239,7 +213,7 @@ const renderHome = () => `
     <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden">
       <div class="absolute inset-0 bg-[url('https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/bg-pattern.png')] opacity-10"></div>
       <h2 class="text-4xl font-black text-[#f0e6d2] uppercase tracking-widest z-10 drop-shadow-lg">LoL Fearless Draft</h2>
-      <p class="text-sm text-[#a09b8c] z-10">인간의 욕심은 돼지와 같고 음악은 돼지를 춤추게 한다</p>
+      <p class="text-sm text-[#a09b8c] z-10">인간의 욕심은 돼지와 같고 약탈은 인간의 필수 행위이다</p>
       <button data-act="new" class="mt-2 px-10 py-4 bg-[#C8AA6E] text-[#010a13] font-bold text-xl uppercase tracking-wider hover:bg-[#d6b97e] transition-all shadow-[0_0_20px_rgba(200,170,110,0.4)] z-10 transform hover:scale-105">시리즈 시작</button>
     </div>
     <div class="p-6 bg-[#091428] border border-slate-800">
@@ -622,21 +596,22 @@ const renderStats = () => {
 const act = {
   toggleBgm: () => {
       const audio = document.getElementById('bgmPlayer');
-      if(audio.paused) {
-          audio.play();
-          state.bgm.playing = true;
-      } else {
-          audio.pause();
-          state.bgm.playing = false;
+      if(audio) {
+          if(audio.paused) {
+              audio.play();
+              state.bgm.playing = true;
+          } else {
+              audio.pause();
+              state.bgm.playing = false;
+          }
       }
       app.save();
       app.updateBgmIcon();
   },
   setVolume: (v) => {
       const audio = document.getElementById('bgmPlayer');
-      // Slider is 0-100, audio.volume is 0-1
       const vol = v / 100;
-      audio.volume = vol;
+      if(audio) audio.volume = vol;
       state.bgm.vol = v;
       app.save();
   },
@@ -873,4 +848,3 @@ app.init();
 </script>
 </body>
 </html>
-
