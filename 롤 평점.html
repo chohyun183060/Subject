@@ -54,12 +54,6 @@
   </nav>
 </header>
 
-<div id="startOverlay" class="fixed inset-0 bg-black/90 z-[100] flex flex-col items-center justify-center cursor-pointer" onclick="act.startAudioContext()">
-    <div class="text-5xl animate-bounce mb-6 text-[#C8AA6E]">👆</div>
-    <h2 class="text-3xl font-black text-[#C8AA6E] uppercase tracking-[0.2em] mb-2 drop-shadow-lg">Click to Start</h2>
-    <p class="text-slate-400 text-sm font-mono tracking-widest">음악과 함께 시작하려면 화면을 클릭하세요</p>
-</div>
-
 <audio id="bgmPlayer" loop>
     <source src="2024 LCK 밴픽 브금  LCK Champ Select BGM - 황제리.mp3" type="audio/mpeg">
     <source src="bgm.mp3" type="audio/mpeg">
@@ -77,7 +71,7 @@
 <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl border border-slate-600 hidden text-sm font-bold z-[60]"></div>
 
 <script>
-const KEY='lol_mang_v26_overlay_fix', API='https://ddragon.leagueoflegends.com/cdn';
+const KEY='lol_mang_v27_no_overlay', API='https://ddragon.leagueoflegends.com/cdn';
 const SERIES = { bo: 5, winNeed: 3 };
 const DRAFT_STEPS=[
   {t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},
@@ -138,6 +132,14 @@ const app = {
 
     app.updateBgmIcon();
     app.render();
+    
+    // 자동 재생 시도 (정책상 막히면 클릭 유도 메시지만 띄움)
+    if(state.bgm.playing) {
+        audio.play().catch(() => {
+            console.log('Autoplay blocked. Waiting for interaction.');
+            app.toast('🔊 화면을 클릭하면 배경음악이 재생됩니다.');
+        });
+    }
   },
   
   save: () => { localStorage.setItem(KEY, JSON.stringify(state)); app.render(); },
@@ -162,12 +164,17 @@ const app = {
   createMatch: (seriesId=null, gNo=1, pre={}) => {
     const id = Math.random().toString(36).slice(2);
     let sTitle = pre.seriesTitle || '';
+    let isHard = pre.hardFearless || false;
     if (seriesId) {
         const exist = state.matches.find(m => m.seriesId === seriesId);
-        if (exist) sTitle = exist.seriesTitle || '';
+        if (exist) {
+            sTitle = exist.seriesTitle || '';
+            isHard = exist.hardFearless || false;
+        }
     }
     const m = {
-      id, seriesId: seriesId||id, gameNo: gNo, seriesTitle: sTitle, created: new Date().toISOString(), status:'drafting',
+      id, seriesId: seriesId||id, gameNo: gNo, seriesTitle: sTitle, hardFearless: isHard,
+      created: new Date().toISOString(), status:'drafting',
       blue:{name:pre.bN||'BLUE', p:pre.bP||Array(5).fill('')}, red:{name:pre.rN||'RED', p:pre.rP||Array(5).fill('')},
       draft:{idx:0, acts:[], bans:{BLUE:[],RED:[]}, picks:{BLUE:[],RED:[]}}, ratings:{}, result:null,
       potm: null, nordnam: null
@@ -194,11 +201,8 @@ const app = {
     else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
     else if(state.view==='stats') root.innerHTML = renderStats();
     
-    // 렌더링 후 볼륨 슬라이더 값 동기화
     const volInput = document.getElementById('bgmVol');
     if(volInput && state.bgm) volInput.value = state.bgm.vol;
-    
-    // 아이콘 상태 동기화
     app.updateBgmIcon();
   },
   
@@ -228,7 +232,8 @@ const renderHome = () => `
           <div>
             <div class="flex items-center gap-2 mb-1">
               <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 text-slate-400 rounded border border-slate-700 font-mono">${m.seriesTitle || 'Untitled Series'}</span>
-              <span class="text-xs text-[#a09b8c] font-mono">${m.created.split('T')[0]}</span>
+              <span class="text-xs bg-slate-700 px-1.5 py-0.5 text-slate-300 ml-1 rounded">${m.hardFearless ? 'HARD' : 'SOFT'}</span>
+              <span class="text-xs text-[#a09b8c] font-mono ml-2">${m.created.split('T')[0]}</span>
               <span class="text-xs bg-slate-800 px-1.5 py-0.5 text-slate-300">Game ${m.gameNo}</span>
             </div>
             <div class="font-bold text-[#f0e6d2]"><span class="text-blue-400">${m.blue.name}</span> vs <span class="text-red-400">${m.red.name}</span></div>
@@ -266,13 +271,18 @@ const renderMatchHeader = (match) => {
     const isDone = match.draft.idx >= DRAFT_STEPS.length;
     const score = getScore(match);
     const title = match.seriesTitle || 'Untitled Series';
+    const modeBadge = match.hardFearless ? 
+        '<span class="px-2 py-0.5 rounded bg-red-900/50 border border-red-700 text-[10px] text-red-200 font-bold">HARD FEARLESS</span>' : 
+        '<span class="px-2 py-0.5 rounded bg-blue-900/50 border border-blue-700 text-[10px] text-blue-200 font-bold">SOFT FEARLESS</span>';
 
     return `
       <div class="flex flex-col border-b border-slate-800 bg-[#091428] relative shrink-0">
         <div class="flex justify-between items-center px-6 py-3 relative z-10">
-            <div class="font-mono text-[#a09b8c] text-sm w-1/3 truncate">
-                <span class="font-bold text-[#C8AA6E] mr-2">${title}</span>
-                GAME ${match.gameNo} <span class="mx-2 text-slate-600">|</span> SERIES ${match.seriesId.slice(0,4)}
+            <div class="font-mono text-[#a09b8c] text-sm w-1/3 truncate flex items-center gap-2">
+                <span class="font-bold text-[#C8AA6E]">${title}</span>
+                ${modeBadge}
+                <span class="text-slate-500">|</span>
+                <span>GAME ${match.gameNo}</span>
             </div>
             <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6">
                 <div class="text-right">
@@ -303,7 +313,10 @@ const renderMatchHeader = (match) => {
 
 const renderDraft = (m) => {
   const isDone = m.draft.idx >= DRAFT_STEPS.length;
-  const locked = app.getLocked(m);
+  const currentStep = DRAFT_STEPS[m.draft.idx];
+  const currentSide = currentStep ? currentStep.s : null;
+  const locked = app.getLocked(m, currentSide);
+  
   const taken = new Set([...m.draft.bans.BLUE, ...m.draft.bans.RED, ...m.draft.picks.BLUE, ...m.draft.picks.RED]);
   
   const champGrid = champs.map(c => {
@@ -598,26 +611,6 @@ const renderStats = () => {
 };
 
 const act = {
-  // ★ 중요: 오버레이 클릭 시 호출되어 오디오 컨텍스트를 시작하는 함수
-  startAudioContext: () => {
-      const audio = document.getElementById('bgmPlayer');
-      const overlay = document.getElementById('startOverlay');
-      if(audio) {
-          audio.play()
-            .then(() => {
-                // 재생 성공 시
-                state.bgm.playing = true;
-                app.updateBgmIcon();
-                // 오버레이 숨기기
-                if(overlay) overlay.style.display = 'none';
-            })
-            .catch(e => {
-                console.error('Audio playback failed:', e);
-                // 실패해도 오버레이는 닫아줌 (사용성 위해)
-                if(overlay) overlay.style.display = 'none';
-            });
-      }
-  },
   toggleBgm: () => {
       const audio = document.getElementById('bgmPlayer');
       if(audio) {
@@ -836,6 +829,14 @@ const act = {
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
   if(t) act[t.dataset.act](e);
+  
+  // 첫 클릭 시 오디오 강제 재생 (브라우저 정책 대응)
+  if(state.bgm && state.bgm.playing) {
+      const audio = document.getElementById('bgmPlayer');
+      if(audio && audio.paused) {
+          audio.play().then(() => {}).catch(err => {});
+      }
+  }
 });
 
 document.addEventListener('change', e => {
