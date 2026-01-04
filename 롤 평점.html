@@ -83,7 +83,8 @@
 <div id="modal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
   <div class="bg-[#091428] border border-[#C8AA6E] rounded-none w-full max-w-2xl overflow-hidden shadow-2xl">
     <div class="p-4 border-b border-slate-700 flex justify-between font-bold text-[#C8AA6E] uppercase tracking-wider"><span id="mTitle"></span><button onclick="app.closeModal()" class="text-slate-400 hover:text-white">✕</button></div>
-    <div id="mBody" class="p-6 max-h-[70vh] overflow-y-auto"></div>
+    <!-- 모달 바디에도 스크롤바 적용 -->
+    <div id="mBody" class="p-6 max-h-[70vh] overflow-y-auto scrollbar"></div>
     <div id="mFooter" class="p-4 border-t border-slate-700 flex justify-end gap-2 bg-[#010a13]"></div>
   </div>
 </div>
@@ -280,8 +281,8 @@ const renderErr = () => `<div class="p-8 text-center text-slate-500 h-full flex 
 const renderHome = () => {
     if(isSpectator) return renderErr(); 
     return `
-      <div class="p-4 max-w-5xl mx-auto grid gap-6">
-        <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden">
+      <div class="p-4 max-w-5xl mx-auto grid gap-6 h-full overflow-y-auto scrollbar">
+        <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden shrink-0">
           <div class="absolute inset-0 bg-[url('https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/bg-pattern.png')] opacity-10"></div>
           <h2 class="text-4xl font-black text-[#f0e6d2] uppercase tracking-widest z-10 drop-shadow-lg">LoL Fearless Draft</h2>
           <p class="text-sm text-[#a09b8c] z-10">양기훈의 존재의의는 타인에게 약탈 당함에 있으니 조현빈의 약탈은 정당하다 -대한민국 대법원 판결 발췌-</p>
@@ -564,7 +565,7 @@ const renderTeamCol = (m, side) => {
           `;
         }).join('')}
       </div>
-      <div class="flex-1 flex flex-col p-2 gap-2">
+      <div class="flex-1 flex flex-col p-2 gap-2 overflow-y-auto scrollbar">
         ${Array(5).fill(0).map((_,i) => {
           const c = picks[i];
           const pName = t.p[i] || roles[i];
@@ -578,7 +579,7 @@ const renderTeamCol = (m, side) => {
           const emptyStyle = isSpectator && !c ? 'opacity-50' : '';
 
           return `
-            <div onclick="${(!isSpectator && m.draft.idx >= DRAFT_STEPS.length) ? `act.swap('${side}', ${i})` : ''}" class="flex-1 relative border border-slate-800 bg-[#091428] overflow-hidden group ${isCurrentPick ? activeClass : ''} ${swapClass} ${cursorClass} ${emptyStyle} transition-all">
+            <div onclick="${(!isSpectator && m.draft.idx >= DRAFT_STEPS.length) ? `act.swap('${side}', ${i})` : ''}" class="flex-1 min-h-[80px] relative border border-slate-800 bg-[#091428] overflow-hidden group ${isCurrentPick ? activeClass : ''} ${swapClass} ${cursorClass} ${emptyStyle} transition-all">
               ${c ? `
                 <img src="${getImgUrl(c, 'splash')}" class="absolute inset-0 w-full h-full object-cover object-top opacity-60 ${isSpectator ? 'opacity-80' : ''} group-hover:opacity-100 transition-opacity duration-500" onerror="this.src='https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/-1.png'">
                 <div class="absolute inset-0 ${overlayClass}"></div>
@@ -826,9 +827,9 @@ const renderStats = () => {
   };
 
   return `
-    <div class="max-w-5xl mx-auto p-6 space-y-6">
+    <div class="max-w-5xl mx-auto p-6 space-y-6 h-full overflow-y-auto scrollbar">
       
-      <div class="bg-[#091428] border border-slate-800 p-4 rounded-lg">
+      <div class="bg-[#091428] border border-slate-800 p-4 rounded-lg shrink-0">
          <div class="flex justify-between text-xs font-bold uppercase mb-2">
             <span class="text-blue-400">Blue Side Win Rate (${sideStats.blueWins}W)</span>
             <span class="text-red-400">Red Side Win Rate (${sideStats.redWins}W)</span>
@@ -839,7 +840,7 @@ const renderStats = () => {
          </div>
       </div>
 
-      <div class="bg-[#091428] border border-slate-800 p-6 rounded-lg">
+      <div class="bg-[#091428] border border-slate-800 p-6 rounded-lg shrink-0">
         <h2 class="text-xl font-black text-[#C8AA6E] uppercase mb-4">🏆 Team Rankings</h2>
         <table class="w-full text-left text-sm">
           <thead class="text-slate-500 border-b border-slate-700 uppercase text-xs">
@@ -875,7 +876,7 @@ const renderStats = () => {
         </table>
       </div>
 
-      <div class="bg-[#091428] border border-slate-800 p-6 rounded-lg">
+      <div class="bg-[#091428] border border-slate-800 p-6 rounded-lg shrink-0 pb-10">
         <h2 class="text-xl font-black text-[#C8AA6E] uppercase mb-4">👤 Player Rankings</h2>
         <table class="w-full text-left text-sm">
           <thead class="text-slate-500 border-b border-slate-700 uppercase text-xs">
@@ -916,13 +917,11 @@ const renderStats = () => {
 
 const act = {
   showPlayerHistory: (name) => {
-      // 해당 선수가 참여한 경기 필터링 (완료된 경기만)
       const history = state.matches.filter(m => 
           m.status === 'completed' && 
           (m.blue.p.includes(name) || m.red.p.includes(name))
       );
 
-      // 최신순 정렬 (기본적으로 matches는 최신순이지만 확인 차원)
       // history.sort((a,b) => new Date(b.created) - new Date(a.created)); 
 
       const html = history.length === 0 ? '<div class="text-center text-slate-500 py-4">기록이 없습니다.</div>' : 
@@ -932,25 +931,20 @@ const act = {
           const teamName = isBlue ? m.blue.name : m.red.name;
           const enemyName = isBlue ? m.red.name : m.blue.name;
           
-          // 승패 여부 확인
-          const winner = m.result?.win; // 'BLUE' or 'RED'
+          const winner = m.result?.win; 
           const isWin = (winner === 'BLUE' && isBlue) || (winner === 'RED' && !isBlue);
           
-          // 스타일 설정
           const bgClass = isWin ? 'bg-blue-900/20 border-blue-900/50' : 'bg-red-900/20 border-red-900/50';
-          const textClass = isWin ? 'text-blue-300' : 'text-red-300';
           const resultText = isWin ? 'WIN' : 'LOSE';
 
           return `
             <div class="flex items-center gap-4 p-3 border rounded-lg mb-2 ${bgClass} hover:bg-opacity-30 transition-colors">
-                <!-- 챔피언 이미지 -->
                 <div class="relative w-12 h-12 shrink-0">
                     <img src="${getImgUrl(stats.champId, 'square')}" class="w-full h-full rounded border border-slate-600">
                     ${m.potm === name ? '<div class="absolute -top-2 -left-2 text-sm">👑</div>' : ''}
                     ${m.nordnam === name ? '<div class="absolute -top-2 -left-2 text-sm">💀</div>' : ''}
                 </div>
                 
-                <!-- 경기 정보 -->
                 <div class="flex-1 min-w-0 flex flex-col justify-center">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-[10px] font-bold ${isWin ? 'bg-blue-600' : 'bg-red-600'} text-white px-1.5 rounded">${resultText}</span>
@@ -964,7 +958,6 @@ const act = {
                     </div>
                 </div>
 
-                <!-- 스탯 정보 -->
                 <div class="flex items-center gap-4 shrink-0 text-right">
                     <div class="flex flex-col items-end w-20">
                         <div class="font-bold text-[#f0e6d2] font-mono">${stats.k} / ${stats.d} / ${stats.a}</div>
