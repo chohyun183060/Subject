@@ -31,10 +31,8 @@
 .active-red { animation: pulse-red 1.5s infinite; z-index: 10; }
 .champ-overlay { background: linear-gradient(to right, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 100%); }
 
-.potm-glow { box-shadow: 0 0 20px rgba(251, 191, 36, 0.3); border-color: #fbbf24 !important; background: linear-gradient(135deg, rgba(251,191,36,0.1) 0%, #091428 100%); }
-.potm-badge { background: linear-gradient(90deg, #b45309 0%, #fbbf24 50%, #b45309 100%); background-size: 200% auto; animation: shine 3s linear infinite; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
-.nordnam-glow { box-shadow: 0 0 20px rgba(71, 85, 105, 0.5); border-color: #94a3b8 !important; background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, #000000 100%); opacity: 0.9; }
-.nordnam-badge { background: linear-gradient(90deg, #1e293b 0%, #64748b 50%, #1e293b 100%); background-size: 200% auto; animation: shine 4s linear infinite; color: #e2e8f0; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+.potm-glow { box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); border: 1px solid #fbbf24 !important; }
+.nordnam-glow { box-shadow: 0 0 15px rgba(148, 163, 184, 0.4); border: 1px solid #94a3b8 !important; }
 
 /* 관전자 모드 전용 스타일 */
 .spec-hide { display: none !important; }
@@ -64,6 +62,7 @@
     <button onclick="app.openSpectator()" class="px-3 py-1 bg-amber-900/50 border border-amber-700 text-amber-200 rounded hover:bg-amber-900 text-xs font-bold flex items-center gap-1">🎥 관전창</button>
     <button onclick="app.nav('draft')" class="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 text-xs font-bold text-slate-300">밴픽</button>
     <button onclick="app.nav('report')" class="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 text-xs font-bold text-slate-300">결과</button>
+    <button onclick="app.nav('history')" class="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1">📜 기록</button>
     <button onclick="app.nav('stats')" class="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 text-xs font-bold text-slate-300">통계</button>
   </nav>
 </header>
@@ -75,7 +74,7 @@
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
 
-<!-- 관전자 모드 오버레이 (소리 재생 유도) -->
+<!-- 관전자 모드 오버레이 -->
 <div id="specStart" class="fixed inset-0 bg-black/90 z-[100] hidden flex-col items-center justify-center text-center cursor-pointer" onclick="this.style.display='none'; document.getElementById('bgmPlayer').play();">
     <h1 class="text-4xl font-black text-[#C8AA6E] mb-4">SPECTATOR MODE</h1>
     <p class="text-slate-400 text-sm animate-pulse">화면을 클릭하여 중계를 시작하세요</p>
@@ -99,11 +98,12 @@ const DRAFT_STEPS=[
   {t:'ban',s:'RED'},{t:'ban',s:'BLUE'},{t:'ban',s:'RED'},{t:'ban',s:'BLUE'},
   {t:'pick',s:'RED'},{t:'pick',s:'BLUE'},{t:'pick',s:'BLUE'},{t:'pick',s:'RED'}
 ];
+// 팀 프리셋에 색상 정보 추가 (Tailwind CSS 클래스나 hex 코드)
 const TEAM_PRESETS = [
-  { id: 'team1', name: '현태 팀', players: ['현태', '호연', '주호', '세연', '필립'] },
-  { id: 'team2', name: '인혁 팀', players: ['건재', '인혁', '승원', '성윤', '일서'] },
-  { id: 'team3', name: '희성 팀', players: ['태무', '진현', '찬현', '희성', '관우'] },
-  { id: 'team4', name: '희철 팀', players: ['승범', '선우', '호진', '현빈', '희철'] },
+  { id: 'team1', name: '현태 팀', players: ['현태', '호연', '주호', '세연', '필립'], color: '#ef4444', bgColor: 'bg-red-900/50' },
+  { id: 'team2', name: '인혁 팀', players: ['건재', '인혁', '승원', '성윤', '일서'], color: '#3b82f6', bgColor: 'bg-blue-900/50' },
+  { id: 'team3', name: '희성 팀', players: ['태무', '진현', '찬현', '희성', '관우'], color: '#10b981', bgColor: 'bg-emerald-900/50' },
+  { id: 'team4', name: '희철 팀', players: ['승범', '선우', '호진', '현빈', '희철'], color: '#a855f7', bgColor: 'bg-purple-900/50' },
 ];
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -257,6 +257,7 @@ const app = {
     if(state.view==='home') root.innerHTML = renderHome();
     else if(state.view==='draft') root.innerHTML = m ? renderDraft(m) : renderErr();
     else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
+    else if(state.view==='history') root.innerHTML = renderHistory();
     else if(state.view==='stats') root.innerHTML = renderStats();
     
     const volInput = document.getElementById('bgmVol');
@@ -311,6 +312,55 @@ const renderHome = () => {
     `;
 };
 
+const renderHistory = () => {
+    if(isSpectator) return renderErr();
+    return `
+      <div class="max-w-5xl mx-auto p-6 h-full flex flex-col">
+        <div class="bg-[#091428] border border-slate-800 p-6 flex flex-col h-full">
+          <h2 class="text-xl font-black text-[#C8AA6E] uppercase mb-6 flex items-center gap-2">
+            <span>📜 Match History</span>
+            <span class="text-slate-500 text-sm font-normal normal-case">(${state.matches.length} games)</span>
+          </h2>
+          <div class="overflow-y-auto flex-1 scrollbar pr-2">
+              ${state.matches.length === 0 ? '<div class="text-slate-600 text-center py-10">저장된 기록이 없습니다.</div>' : state.matches.map(m => {
+                  const winner = m.result?.win;
+                  const isBlueWin = winner === 'BLUE';
+                  const isRedWin = winner === 'RED';
+                  return `
+                    <div class="flex flex-col md:flex-row justify-between items-center p-4 border-b border-slate-800 hover:bg-slate-900/50 transition-colors gap-4">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                          <span class="text-[10px] bg-slate-800 px-2 py-0.5 text-slate-400 rounded border border-slate-700 font-mono font-bold">${m.seriesTitle || 'Untitled'}</span>
+                          <span class="text-[10px] bg-slate-900 px-2 py-0.5 text-slate-500 rounded border border-slate-800">GAME ${m.gameNo}</span>
+                          <span class="text-[10px] ${m.hardFearless ? 'text-red-400' : 'text-blue-400'} font-bold border border-slate-800 px-1 rounded">${m.hardFearless ? 'HARD' : 'SOFT'}</span>
+                          <span class="text-xs text-slate-600 font-mono">${m.created.split('T')[0]}</span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm">
+                            <div class="flex items-center gap-2 ${isBlueWin ? 'opacity-100' : 'opacity-60 grayscale'}">
+                                <span class="font-bold text-blue-400 text-lg">${m.blue.name}</span>
+                                ${isBlueWin ? '<span class="text-xs bg-blue-900 text-blue-200 px-1 rounded">WIN</span>' : ''}
+                            </div>
+                            <span class="text-slate-600 font-bold">VS</span>
+                            <div class="flex items-center gap-2 ${isRedWin ? 'opacity-100' : 'opacity-60 grayscale'}">
+                                <span class="font-bold text-red-400 text-lg">${m.red.name}</span>
+                                ${isRedWin ? '<span class="text-xs bg-red-900 text-red-200 px-1 rounded">WIN</span>' : ''}
+                            </div>
+                        </div>
+                      </div>
+                      
+                      <div class="flex gap-2 shrink-0">
+                        <button data-act="load" data-id="${m.id}" class="px-4 py-2 bg-[#1e2328] border border-[#C8AA6E] text-[#C8AA6E] text-xs font-bold hover:bg-[#C8AA6E] hover:text-black transition-colors uppercase tracking-wider">Load Game</button>
+                        <button data-act="del" data-id="${m.id}" class="px-3 py-2 bg-slate-900 border border-slate-700 text-slate-500 text-xs font-bold hover:text-red-400 hover:border-red-900 transition-colors">✕</button>
+                      </div>
+                    </div>
+                  `;
+              }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+};
+
 function getScore(match) {
     const series = state.matches.filter(m => m.seriesId === match.seriesId && m.status === 'completed');
     let blueWins = 0, redWins = 0;
@@ -333,7 +383,6 @@ const renderMatchHeader = (match) => {
         '<span class="px-2 py-0.5 rounded bg-red-900/50 border border-red-700 text-[10px] text-red-200 font-bold">HARD FEARLESS</span>' : 
         '<span class="px-2 py-0.5 rounded bg-blue-900/50 border border-blue-700 text-[10px] text-blue-200 font-bold">SOFT FEARLESS</span>';
     
-    // 밴픽 화면 캡처 버튼 추가
     const captureBtn = isSpectator ? '' : `<button onclick="act.capture()" class="px-3 py-1 bg-slate-800 border border-slate-500 text-slate-300 hover:border-white transition-colors mr-2">📷</button>`;
     const undoBtn = isSpectator ? '' : `<button data-act="undo" class="px-3 py-1 bg-slate-800 border border-slate-600 text-xs text-slate-300 hover:border-white transition-colors">UNDO</button>`;
     const nextBtn = (!isSpectator && isDone) ? `<button data-act="goReport" class="px-4 py-1 bg-emerald-900 border border-emerald-500 text-emerald-100 text-xs font-bold hover:bg-emerald-800 transition-colors shadow-lg shadow-emerald-900/50">NEXT PHASE</button>` : '';
@@ -553,63 +602,13 @@ const renderTeamCol = (m, side) => {
   `;
 };
 
-const renderDamageGraph = (m) => {
-    const bluePlayers = (m.blue.p || []).filter(Boolean);
-    const redPlayers  = (m.red.p || []).filter(Boolean);
-    const blueData = bluePlayers.map(p => ({ name: p, champ: m.ratings[p]?.champId, dmg: Number(m.ratings[p]?.damage || 0) }));
-    const redData = redPlayers.map(p => ({ name: p, champ: m.ratings[p]?.champId, dmg: Number(m.ratings[p]?.damage || 0) }));
-    const allDamages = [...blueData, ...redData].map(d => d.dmg);
-    const maxDmg = Math.max(...allDamages) || 1;
-    const formatDmg = (num) => { if (num >= 1000) return (num / 1000).toFixed(1) + 'K'; return num; };
-    const rows = Array.from({length: 5}).map((_, i) => {
-        const b = blueData[i] || { name: '-', champ: null, dmg: 0 };
-        const r = redData[i] || { name: '-', champ: null, dmg: 0 };
-        const bWidth = (b.dmg / maxDmg) * 100;
-        const rWidth = (r.dmg / maxDmg) * 100;
-        return `
-          <div class="flex items-center gap-4 mb-3">
-            <div class="flex-1 flex items-center justify-end gap-3">
-               <div class="flex flex-col items-end w-full">
-                  <div class="text-xs font-bold text-slate-200 mb-1 flex items-center gap-2">
-                     <span class="text-slate-400 text-[10px] truncate max-w-[60px]">${b.name}</span>
-                     <span class="text-lg font-black italic text-sky-100">${formatDmg(b.dmg)}</span>
-                  </div>
-                  <div class="w-full bg-slate-800/50 h-2.5 rounded-l-sm flex justify-end">
-                     <div class="h-full bg-sky-500/80 transition-all duration-500" style="width: ${bWidth}%"></div>
-                  </div>
-               </div>
-               ${b.champ ? `<img src="${getImgUrl(b.champ, 'square')}" class="w-9 h-9 rounded-lg border border-slate-600">` : `<div class="w-9 h-9 bg-slate-900 border border-slate-700 rounded-lg"></div>`}
-            </div>
-            <div class="flex-1 flex items-center gap-3">
-               ${r.champ ? `<img src="${getImgUrl(r.champ, 'square')}" class="w-9 h-9 rounded-lg border border-slate-600">` : `<div class="w-9 h-9 bg-slate-900 border border-slate-700 rounded-lg"></div>`}
-               <div class="flex flex-col w-full">
-                  <div class="text-xs font-bold text-slate-200 mb-1 flex items-center gap-2">
-                     <span class="text-lg font-black italic text-rose-100">${formatDmg(r.dmg)}</span>
-                     <span class="text-slate-400 text-[10px] truncate max-w-[60px]">${r.name}</span>
-                  </div>
-                  <div class="w-full bg-slate-800/50 h-2.5 rounded-r-sm">
-                     <div class="h-full bg-rose-500/80 transition-all duration-500" style="width: ${rWidth}%"></div>
-                  </div>
-               </div>
-            </div>
-          </div>
-        `;
-    }).join('');
-    return `
-      <section class="bg-[#091428] border border-slate-800 rounded-2xl p-6 mt-4 shadow-lg">
-        <div class="text-center mb-6 border-b border-slate-800 pb-2">
-            <h3 class="text-[#C8AA6E] font-black text-xl uppercase tracking-widest drop-shadow-md">Total Damage Dealt</h3>
-        </div>
-        <div class="flex flex-col gap-2">
-          ${rows}
-        </div>
-      </section>
-    `;
-};
-
+// 통합된 리포트 렌더링 (평점입력 + 딜량그래프)
 const renderReport = (m) => {
-  const players = [...m.blue.p, ...m.red.p].filter(Boolean);
-  players.forEach((p) => {
+  const bluePlayers = (m.blue.p || []).filter(Boolean);
+  const redPlayers  = (m.red.p || []).filter(Boolean);
+  
+  // 데이터 초기화 및 수집
+  [...bluePlayers, ...redPlayers].forEach((p) => {
       if (m.ratings[p] && m.ratings[p].champId) return;
       const isBlue = m.blue.p.includes(p);
       const side = isBlue ? 'BLUE' : 'RED';
@@ -617,6 +616,10 @@ const renderReport = (m) => {
       const draftChamp = m.draft.picks[side][pIdx]; 
       m.ratings[p] = { k:0, d:0, a:0, rating:5, damage:0, champId: draftChamp, ...m.ratings[p] };
   });
+
+  const allDamages = [...bluePlayers, ...redPlayers].map(p => Number(m.ratings[p]?.damage || 0));
+  const maxDmg = Math.max(...allDamages) || 1;
+  const formatDmg = (num) => { if (num >= 1000) return (num / 1000).toFixed(1) + 'K'; return num; };
 
   const champOptions = (side, selected) => {
       const picks = m.draft.picks[side].filter(Boolean);
@@ -627,144 +630,283 @@ const renderReport = (m) => {
       }).join('');
   };
 
-  const pCard = (p, team) => {
-    const r = m.ratings[p];
-    const isB = team==='BLUE';
-    const isPotm = m.potm === p;
-    const isNordnam = m.nordnam === p;
-    
-    const imgHtml = r.champId 
-        ? `<img src="${getImgUrl(r.champId, 'square')}" class="w-12 h-12 rounded border border-slate-600 shadow-md">`
-        : `<div class="w-12 h-12 bg-slate-900 border border-slate-700 rounded flex items-center justify-center text-xs">?</div>`;
+  const renderRow = (idx) => {
+      const bP = bluePlayers[idx];
+      const rP = redPlayers[idx];
+      if(!bP || !rP) return '';
 
-    let cardClass = isB ? 'border-blue-900' : 'border-red-900';
-    if(isPotm) cardClass = 'potm-glow border-amber-500';
-    if(isNordnam) cardClass = 'nordnam-glow border-slate-500';
+      const bR = m.ratings[bP];
+      const rR = m.ratings[rP];
+      const bDmgPct = (bR.damage / maxDmg) * 100;
+      const rDmgPct = (rR.damage / maxDmg) * 100;
 
-    if(isSpectator) {
-        return `<div class="bg-[#091428] p-3 border flex items-center gap-4 relative rounded-xl shadow-md transition-all ${cardClass}">
-             <div class="relative">
-                 ${imgHtml}
-                 ${isPotm ? '<div class="absolute -top-2 -left-2 text-xl">👑</div>' : ''}
-                 ${isNordnam ? '<div class="absolute -top-2 -left-2 text-xl">💀</div>' : ''}
-             </div>
-             <div class="flex-1 min-w-0">
-                 <div class="flex justify-between items-center mb-1">
-                    <div class="font-bold text-base ${isB?'text-blue-400':'text-red-400'} uppercase tracking-wider truncate">${p}</div>
-                 </div>
-                 <div class="text-sm text-slate-400 font-mono">${r.k} / ${r.d} / ${r.a} <span class="text-slate-600">|</span> <span class="text-[#C8AA6E] font-bold">${r.rating}</span></div>
-             </div>
-        </div>`;
-    }
+      const isBPotm = m.potm === bP; const isBNord = m.nordnam === bP;
+      const isRPotm = m.potm === rP; const isRNord = m.nordnam === rP;
 
-    return `<div class="bg-[#091428] p-4 border flex flex-col gap-3 relative rounded-xl shadow-md transition-all ${cardClass}">
-      <div class="flex items-center gap-4 border-b border-slate-800 pb-3">
-         <div class="relative">
-             ${imgHtml}
-             ${isPotm ? '<div class="absolute -top-2 -left-2 text-xl">👑</div>' : ''}
-             ${isNordnam ? '<div class="absolute -top-2 -left-2 text-xl">💀</div>' : ''}
-         </div>
-         <div class="flex-1 min-w-0">
-            <div class="flex justify-between items-center mb-1">
-                <div class="font-bold text-base ${isB?'text-blue-400':'text-red-400'} uppercase tracking-wider truncate">${p}</div>
-                <div class="flex gap-1">
-                   <button onclick="act.setPotm('${p}')" class="text-[10px] font-bold px-2 py-0.5 rounded ${isPotm ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-500 hover:text-amber-400'} transition-all">POTM</button>
-                   <button onclick="act.setNordnam('${p}')" class="text-[10px] font-bold px-2 py-0.5 rounded ${isNordnam ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-500 hover:text-white'} transition-all">NORDNAM</button>
-                </div>
+      const inputClass = "bg-transparent border-b border-slate-700 text-center focus:outline-none focus:border-[#C8AA6E] transition-colors text-xs py-1";
+
+      return `
+      <div class="flex items-center gap-2 mb-2 p-2 bg-[#050b14] border border-slate-800 rounded-lg hover:border-slate-600 transition-colors group">
+        <!-- BLUE SIDE INFO -->
+        <div class="w-[30%] flex items-center gap-3">
+            <div class="relative w-12 h-12 shrink-0">
+                <img src="${getImgUrl(bR.champId, 'square')}" class="w-full h-full rounded border ${isBPotm?'potm-glow':(isBNord?'nordnam-glow':'border-slate-600')}">
+                ${isBPotm ? '<div class="absolute -top-2 -left-2 text-sm">👑</div>' : ''}
+                ${isBNord ? '<div class="absolute -top-2 -left-2 text-sm">💀</div>' : ''}
             </div>
-            <select class="text-[11px] bg-slate-950 border border-slate-700 rounded text-slate-400 w-full px-1 py-0.5 focus:outline-none focus:border-[#C8AA6E]" onchange="act.changeChamp('${p}', this.value)">
-                <option value="">챔피언 선택</option>
-                ${champOptions(team, r.champId)}
-            </select>
-         </div>
-      </div>
-      <div class="grid grid-cols-4 gap-2 text-sm items-center">
-        <div class="col-span-3 flex gap-1">
-            <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.k}" onchange="act.rate('${p}','k',this.value)" placeholder="K">
-            <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.d}" onchange="act.rate('${p}','d',this.value)" placeholder="D">
-            <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.a}" onchange="act.rate('${p}','a',this.value)" placeholder="A">
+            <div class="flex flex-col flex-1 min-w-0">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-blue-400 text-sm truncate cursor-pointer hover:text-white" onclick="act.toggleRole('${bP}')">${bP}</span>
+                    <div class="flex gap-0.5">
+                        <button onclick="act.setPotm('${bP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-amber-400 rounded">P</button>
+                        <button onclick="act.setNordnam('${bP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-white rounded">N</button>
+                    </div>
+                </div>
+                <div class="flex gap-1 mt-1">
+                    <input type="number" placeholder="K" class="${inputClass} w-8 text-white font-bold" value="${bR.k}" onchange="act.rate('${bP}','k',this.value)">
+                    <input type="number" placeholder="D" class="${inputClass} w-8 text-slate-400" value="${bR.d}" onchange="act.rate('${bP}','d',this.value)">
+                    <input type="number" placeholder="A" class="${inputClass} w-8 text-slate-400" value="${bR.a}" onchange="act.rate('${bP}','a',this.value)">
+                    <span class="text-slate-600 mx-1">|</span>
+                    <input type="number" placeholder="RT" min="1" max="10" class="${inputClass} w-8 text-[#C8AA6E] font-bold" value="${bR.rating}" onchange="act.rate('${bP}','rating',this.value)">
+                </div>
+                <select class="hidden" onchange="act.changeChamp('${bP}', this.value)">${champOptions('BLUE', bR.champId)}</select>
+            </div>
         </div>
-        <div class="text-[10px] text-slate-500 text-center font-bold">KDA</div>
-      </div>
-      <div class="flex gap-2 text-sm items-center">
-        <div class="flex-1">
-            <input type="number" class="w-full bg-[#010a13] border border-slate-700 text-center text-[#f0e6d2] rounded py-1 no-spin" value="${r.damage}" onchange="act.rate('${p}','damage',this.value)" placeholder="Damage">
+
+        <!-- CENTER: DAMAGE GRAPH & INPUT -->
+        <div class="flex-1 flex gap-1 items-center h-14 bg-[#010a13] px-2 rounded border border-slate-800/50">
+             <!-- Blue Bar -->
+             <div class="flex-1 flex flex-col items-end justify-center relative">
+                 <input type="number" class="bg-transparent text-right text-xs font-black italic text-blue-200 outline-none w-16 mb-0.5 z-10 relative" value="${bR.damage}" onchange="act.rate('${bP}','damage',this.value)" placeholder="DMG">
+                 <div class="w-full h-3 bg-slate-800 rounded-l-sm flex justify-end overflow-hidden">
+                     <div class="h-full bg-blue-500/80 transition-all duration-500" style="width: ${bDmgPct}%"></div>
+                 </div>
+             </div>
+             
+             <!-- VS Separator -->
+             <div class="text-[10px] font-bold text-slate-600 px-1">VS</div>
+
+             <!-- Red Bar -->
+             <div class="flex-1 flex flex-col items-start justify-center relative">
+                 <input type="number" class="bg-transparent text-left text-xs font-black italic text-red-200 outline-none w-16 mb-0.5 z-10 relative" value="${rR.damage}" onchange="act.rate('${rP}','damage',this.value)" placeholder="DMG">
+                 <div class="w-full h-3 bg-slate-800 rounded-r-sm flex justify-start overflow-hidden">
+                     <div class="h-full bg-red-500/80 transition-all duration-500" style="width: ${rDmgPct}%"></div>
+                 </div>
+             </div>
         </div>
-        <span class="text-[10px] text-slate-500 w-8 text-center font-bold">DMG</span>
+
+        <!-- RED SIDE INFO -->
+        <div class="w-[30%] flex flex-row-reverse items-center gap-3">
+            <div class="relative w-12 h-12 shrink-0">
+                <img src="${getImgUrl(rR.champId, 'square')}" class="w-full h-full rounded border ${isRPotm?'potm-glow':(isRNord?'nordnam-glow':'border-slate-600')}">
+                ${isRPotm ? '<div class="absolute -top-2 -right-2 text-sm">👑</div>' : ''}
+                ${isRNord ? '<div class="absolute -top-2 -right-2 text-sm">💀</div>' : ''}
+            </div>
+            <div class="flex flex-col flex-1 min-w-0 items-end">
+                <div class="flex justify-between items-center w-full flex-row-reverse">
+                    <span class="font-bold text-red-400 text-sm truncate cursor-pointer hover:text-white" onclick="act.toggleRole('${rP}')">${rP}</span>
+                    <div class="flex gap-0.5">
+                        <button onclick="act.setPotm('${rP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-amber-400 rounded">P</button>
+                        <button onclick="act.setNordnam('${rP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-white rounded">N</button>
+                    </div>
+                </div>
+                <div class="flex gap-1 mt-1 justify-end">
+                    <input type="number" placeholder="RT" min="1" max="10" class="${inputClass} w-8 text-[#C8AA6E] font-bold" value="${rR.rating}" onchange="act.rate('${rP}','rating',this.value)">
+                    <span class="text-slate-600 mx-1">|</span>
+                    <input type="number" placeholder="K" class="${inputClass} w-8 text-white font-bold" value="${rR.k}" onchange="act.rate('${rP}','k',this.value)">
+                    <input type="number" placeholder="D" class="${inputClass} w-8 text-slate-400" value="${rR.d}" onchange="act.rate('${rP}','d',this.value)">
+                    <input type="number" placeholder="A" class="${inputClass} w-8 text-slate-400" value="${rR.a}" onchange="act.rate('${rP}','a',this.value)">
+                </div>
+                 <select class="hidden" onchange="act.changeChamp('${rP}', this.value)">${champOptions('RED', rR.champId)}</select>
+            </div>
+        </div>
       </div>
-      <div class="flex items-center gap-2 mt-1 pt-2 border-t border-slate-800/50">
-        <span class="text-[10px] text-slate-500 uppercase font-bold w-12">RATING</span>
-        <input type="range" min="1" max="10" value="${r.rating}" onchange="act.rate('${p}','rating',this.value)" class="flex-1 h-1 bg-slate-700 appearance-none cursor-pointer rounded-full">
-        <span class="font-bold text-[#C8AA6E] w-6 text-center text-lg">${r.rating}</span>
-      </div>
-    </div>`;
+      `;
   };
 
-  const potmBadge = m.potm 
-    ? `<div class="potm-badge px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest inline-flex items-center gap-1"><span>👑 POTM: ${m.potm}</span></div>` : '';
-  const nordnamBadge = m.nordnam 
-    ? `<div class="nordnam-badge px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest inline-flex items-center gap-1"><span>💀 NORDNAM: ${m.nordnam}</span></div>` : '';
-
   const controlBtns = isSpectator ? '' : `
-    <div class="flex gap-4 justify-end" data-html2canvas-ignore="true">
-      <button onclick="act.capture()" class="px-6 py-2 border border-slate-500 text-slate-300 hover:bg-slate-800 font-bold uppercase transition">📷 캡처</button>
-      <button data-act="win" data-side="BLUE" class="px-6 py-2 border border-blue-600 text-blue-400 hover:bg-blue-900/50 font-bold uppercase transition ${m.result?.win==='BLUE'?'bg-blue-900 text-white':''}">Blue Win</button>
-      <button data-act="win" data-side="RED" class="px-6 py-2 border border-red-600 text-red-400 hover:bg-red-900/50 font-bold uppercase transition ${m.result?.win==='RED'?'bg-red-900 text-white':''}">Red Win</button>
-      <button data-act="finish" class="px-6 py-2 bg-[#C8AA6E] text-black font-bold uppercase hover:bg-[#d6b97e] shadow-lg">Save & Next</button>
+    <div class="flex gap-4 justify-center mt-6 border-t border-slate-800 pt-6" data-html2canvas-ignore="true">
+      <button onclick="act.capture()" class="px-6 py-3 border border-slate-500 text-slate-300 hover:bg-slate-800 font-bold uppercase transition flex items-center gap-2">📷 <span>캡처</span></button>
+      <button data-act="win" data-side="BLUE" class="px-8 py-3 border border-blue-600 text-blue-400 hover:bg-blue-900/50 font-bold uppercase transition ${m.result?.win==='BLUE'?'bg-blue-900 text-white':''}">Blue Win</button>
+      <button data-act="win" data-side="RED" class="px-8 py-3 border border-red-600 text-red-400 hover:bg-red-900/50 font-bold uppercase transition ${m.result?.win==='RED'?'bg-red-900 text-white':''}">Red Win</button>
+      <button data-act="finish" class="px-8 py-3 bg-[#C8AA6E] text-black font-bold uppercase hover:bg-[#d6b97e] shadow-lg">Save & Next</button>
     </div>
   `;
 
   return `
-    <div class="p-6 max-w-5xl mx-auto h-full overflow-y-auto scrollbar pb-20">
-      <div id="report-capture-area" class="p-4 bg-[#010a13]">
-        <div class="flex flex-col gap-4 p-6 bg-[#091428] border border-slate-800 shadow-lg mb-6 rounded-2xl">
-          <div class="flex justify-between items-center">
-              <h2 class="text-xl font-black text-[#C8AA6E] uppercase">Match Result</h2>
-              <div class="flex gap-2">
-                  ${potmBadge}
-                  ${nordnamBadge}
-              </div>
-          </div>
-          ${controlBtns}
+    <div class="p-6 max-w-[1200px] mx-auto h-full overflow-y-auto scrollbar pb-20">
+      <div id="report-capture-area" class="p-8 bg-[#010a13] min-w-[900px]">
+        
+        <div class="text-center mb-8">
+             <h2 class="text-3xl font-black text-[#C8AA6E] uppercase tracking-widest drop-shadow-md mb-2">Match Report</h2>
+             <div class="text-slate-500 font-mono text-sm">${m.seriesTitle || 'Untitled Series'} - GAME ${m.gameNo}</div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="flex flex-col gap-3 border-t-4 border-blue-600 pt-4 bg-blue-950/10 rounded-xl p-2">${m.blue.p.filter(Boolean).map(p=>pCard(p,'BLUE')).join('')}</div>
-          <div class="flex flex-col gap-3 border-t-4 border-red-600 pt-4 bg-red-950/10 rounded-xl p-2">${m.red.p.filter(Boolean).map(p=>pCard(p,'RED')).join('')}</div>
+
+        <div class="flex flex-col gap-1">
+            <!-- Headers -->
+            <div class="flex text-[10px] font-bold text-slate-500 px-4 mb-2 uppercase tracking-wider">
+                <div class="w-[30%]">Blue Team</div>
+                <div class="flex-1 text-center">Damage Graph</div>
+                <div class="w-[30%] text-right">Red Team</div>
+            </div>
+
+            <!-- Rows -->
+            ${[0,1,2,3,4].map(i => renderRow(i)).join('')}
         </div>
-        ${renderDamageGraph(m)}
+        
+        <!-- Totals & Badges -->
+        <div class="mt-6 flex justify-between items-center px-4">
+             <div class="flex gap-2">
+                ${m.potm ? `<div class="potm-badge px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-widest inline-flex items-center gap-2 shadow-lg"><span>👑 POTM: ${m.potm}</span></div>` : ''}
+             </div>
+             <div class="flex gap-2">
+                ${m.nordnam ? `<div class="nordnam-badge px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-widest inline-flex items-center gap-2 shadow-lg"><span>💀 NORDNAM: ${m.nordnam}</span></div>` : ''}
+             </div>
+        </div>
       </div>
+      
+      ${controlBtns}
     </div>
   `;
 };
 
 const renderStats = () => {
   if(isSpectator) return renderErr(); 
-  const stats = {};
-  state.matches.filter(m=>m.status==='completed').forEach(m=>{
+  
+  const pStats = {}; // Player Stats
+  const tStats = {}; // Team Stats
+  let sideStats = { blueWins: 0, redWins: 0, total: 0 };
+
+  state.matches.filter(m => m.status === 'completed').forEach(m => {
+    const win = m.result?.win;
+    if(!win) return;
+
+    sideStats.total++;
+    if(win === 'BLUE') sideStats.blueWins++;
+    else sideStats.redWins++;
+
+    const updateTeam = (name, isWinner, side) => {
+        if(!tStats[name]) tStats[name] = { games:0, wins:0, blueWins:0, redWins:0 };
+        tStats[name].games++;
+        if(isWinner) {
+            tStats[name].wins++;
+            if(side === 'BLUE') tStats[name].blueWins++;
+            else tStats[name].redWins++;
+        }
+    };
+
+    updateTeam(m.blue.name, win === 'BLUE', 'BLUE');
+    updateTeam(m.red.name, win === 'RED', 'RED');
+
     Object.entries(m.ratings).forEach(([p,r])=>{
-      if(!stats[p]) stats[p] = {games:0, k:0, d:0, a:0, rateSum:0, potm:0, nordnam:0};
-      const s = stats[p];
+      if(!pStats[p]) pStats[p] = {games:0, k:0, d:0, a:0, rateSum:0, potm:0, nordnam:0};
+      const s = pStats[p];
       s.games++; s.k+=r.k; s.d+=r.d; s.a+=r.a; s.rateSum+=Number(r.rating);
       if(m.potm === p) s.potm++;
       if(m.nordnam === p) s.nordnam++;
     });
   });
-  const list = Object.entries(stats).map(([p,s])=>({p, ...s, avg:(s.rateSum/s.games).toFixed(1)})).sort((a,b)=>b.avg-a.avg);
+
+  const pList = Object.entries(pStats).map(([p,s])=>({p, ...s, avg:(s.rateSum/s.games).toFixed(1)})).sort((a,b)=>b.avg-a.avg);
+  
+  const tList = Object.entries(tStats).map(([name, s]) => ({
+      name, ...s, 
+      winRate: s.games > 0 ? ((s.wins / s.games) * 100).toFixed(1) : 0
+  })).sort((a,b) => b.winRate - a.winRate);
+
+  const blueRate = sideStats.total > 0 ? ((sideStats.blueWins / sideStats.total) * 100).toFixed(1) : 50;
+  const redRate = sideStats.total > 0 ? ((sideStats.redWins / sideStats.total) * 100).toFixed(1) : 50;
+
+  const getTeamInfo = (name) => {
+      let t = TEAM_PRESETS.find(team => team.name === name);
+      if(t) return { name: t.name, color: t.color, bg: t.bgColor };
+      t = TEAM_PRESETS.find(team => team.players.includes(name));
+      if(t) return { name: t.name, color: t.color, bg: t.bgColor };
+      return { name: 'FA', color: '#94a3b8', bg: 'bg-slate-700' };
+  };
+
   return `
-    <div class="max-w-5xl mx-auto p-6">
-      <div class="bg-[#091428] border border-slate-800 p-6">
-        <h2 class="text-xl font-black text-[#C8AA6E] uppercase mb-6">Player Rankings</h2>
+    <div class="max-w-5xl mx-auto p-6 space-y-6">
+      
+      <div class="bg-[#091428] border border-slate-800 p-4 rounded-lg">
+         <div class="flex justify-between text-xs font-bold uppercase mb-2">
+            <span class="text-blue-400">Blue Side Win Rate (${sideStats.blueWins}W)</span>
+            <span class="text-red-400">Red Side Win Rate (${sideStats.redWins}W)</span>
+         </div>
+         <div class="w-full h-4 bg-slate-800 rounded-full overflow-hidden flex relative">
+            <div class="h-full bg-blue-600 flex items-center justify-start pl-2 text-[10px] font-bold text-blue-100" style="width: ${blueRate}%">${blueRate}%</div>
+            <div class="h-full bg-red-600 flex items-center justify-end pr-2 text-[10px] font-bold text-red-100" style="width: ${redRate}%">${redRate}%</div>
+         </div>
+      </div>
+
+      <div class="bg-[#091428] border border-slate-800 p-6 rounded-lg">
+        <h2 class="text-xl font-black text-[#C8AA6E] uppercase mb-4">🏆 Team Rankings</h2>
         <table class="w-full text-left text-sm">
-          <thead class="text-slate-500 border-b border-slate-700 uppercase text-xs"><tr><th class="p-3">Player</th><th>Games</th><th>KDA</th><th>Avg Rating</th><th>POTM</th><th>NORDNAM</th></tr></thead>
+          <thead class="text-slate-500 border-b border-slate-700 uppercase text-xs">
+            <tr>
+                <th class="p-3">Rank</th>
+                <th>Team Name</th>
+                <th>W - L</th>
+                <th>Win Rate</th>
+                <th>Blue Wins</th>
+                <th>Red Wins</th>
+            </tr>
+          </thead>
           <tbody>
-            ${list.map(s=>`<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
-              <td class="p-3 font-bold text-slate-200">${s.p}</td>
-              <td class="text-slate-400">${s.games}</td>
-              <td class="text-slate-400">${s.k}/${s.d}/${s.a}</td>
-              <td class="text-[#C8AA6E] font-bold text-lg">${s.avg}</td>
-              <td class="text-amber-400 font-bold">👑 ${s.potm}</td>
-              <td class="text-slate-500 font-bold">💀 ${s.nordnam}</td>
-            </tr>`).join('')}
+            ${tList.map((t, i) => {
+                const info = getTeamInfo(t.name);
+                return `
+                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                    <td class="p-3 font-bold text-slate-400">#${i+1}</td>
+                    <td>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full" style="background-color:${info.color}"></span>
+                            <span class="font-bold text-white text-base">${t.name}</span>
+                        </div>
+                    </td>
+                    <td class="font-mono text-slate-300"><span class="text-emerald-400">${t.wins}W</span> - <span class="text-red-400">${t.games - t.wins}L</span></td>
+                    <td class="font-bold text-[#C8AA6E] text-lg">${t.winRate}%</td>
+                    <td class="text-blue-400 font-bold">${t.blueWins}</td>
+                    <td class="text-red-400 font-bold">${t.redWins}</td>
+                </tr>
+            `}).join('')}
+            ${tList.length === 0 ? '<tr><td colspan="6" class="text-center py-4 text-slate-600">No data available</td></tr>' : ''}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bg-[#091428] border border-slate-800 p-6 rounded-lg">
+        <h2 class="text-xl font-black text-[#C8AA6E] uppercase mb-4">👤 Player Rankings</h2>
+        <table class="w-full text-left text-sm">
+          <thead class="text-slate-500 border-b border-slate-700 uppercase text-xs">
+            <tr>
+                <th class="p-3">Rank</th>
+                <th>Player</th>
+                <th>Team</th>
+                <th>Games</th>
+                <th>KDA</th>
+                <th>Avg Rating</th>
+                <th>POTM</th>
+                <th>NORDNAM</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pList.map((s, idx)=> {
+                const info = getTeamInfo(s.p);
+                return `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                  <td class="p-3 text-slate-500 font-bold">#${idx+1}</td>
+                  <td class="font-bold text-slate-200 cursor-pointer hover:text-[#C8AA6E] underline decoration-dotted" onclick="act.showPlayerHistory('${s.p}')">${s.p}</td>
+                  <td>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white ${info.bg}" style="border: 1px solid ${info.color}40">${info.name}</span>
+                  </td>
+                  <td class="text-slate-400">${s.games}</td>
+                  <td class="text-slate-400 font-mono">${s.k}/${s.d}/${s.a}</td>
+                  <td class="text-[#C8AA6E] font-bold text-lg">${s.avg}</td>
+                  <td class="text-amber-400 font-bold">👑 ${s.potm}</td>
+                  <td class="text-slate-500 font-bold">💀 ${s.nordnam}</td>
+                </tr>`;
+            }).join('')}
+             ${pList.length === 0 ? '<tr><td colspan="8" class="text-center py-4 text-slate-600">No data available</td></tr>' : ''}
           </tbody>
         </table>
       </div>
@@ -773,6 +915,85 @@ const renderStats = () => {
 };
 
 const act = {
+  showPlayerHistory: (name) => {
+      // 해당 선수가 참여한 경기 필터링 (완료된 경기만)
+      const history = state.matches.filter(m => 
+          m.status === 'completed' && 
+          (m.blue.p.includes(name) || m.red.p.includes(name))
+      );
+
+      // 최신순 정렬 (기본적으로 matches는 최신순이지만 확인 차원)
+      // history.sort((a,b) => new Date(b.created) - new Date(a.created)); 
+
+      const html = history.length === 0 ? '<div class="text-center text-slate-500 py-4">기록이 없습니다.</div>' : 
+        history.map(m => {
+          const stats = m.ratings[name];
+          const isBlue = m.blue.p.includes(name);
+          const teamName = isBlue ? m.blue.name : m.red.name;
+          const enemyName = isBlue ? m.red.name : m.blue.name;
+          
+          // 승패 여부 확인
+          const winner = m.result?.win; // 'BLUE' or 'RED'
+          const isWin = (winner === 'BLUE' && isBlue) || (winner === 'RED' && !isBlue);
+          
+          // 스타일 설정
+          const bgClass = isWin ? 'bg-blue-900/20 border-blue-900/50' : 'bg-red-900/20 border-red-900/50';
+          const textClass = isWin ? 'text-blue-300' : 'text-red-300';
+          const resultText = isWin ? 'WIN' : 'LOSE';
+
+          return `
+            <div class="flex items-center gap-4 p-3 border rounded-lg mb-2 ${bgClass} hover:bg-opacity-30 transition-colors">
+                <!-- 챔피언 이미지 -->
+                <div class="relative w-12 h-12 shrink-0">
+                    <img src="${getImgUrl(stats.champId, 'square')}" class="w-full h-full rounded border border-slate-600">
+                    ${m.potm === name ? '<div class="absolute -top-2 -left-2 text-sm">👑</div>' : ''}
+                    ${m.nordnam === name ? '<div class="absolute -top-2 -left-2 text-sm">💀</div>' : ''}
+                </div>
+                
+                <!-- 경기 정보 -->
+                <div class="flex-1 min-w-0 flex flex-col justify-center">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[10px] font-bold ${isWin ? 'bg-blue-600' : 'bg-red-600'} text-white px-1.5 rounded">${resultText}</span>
+                        <span class="text-xs font-bold text-slate-400">${m.seriesTitle || 'Untitled'} - Game ${m.gameNo}</span>
+                        <span class="text-[10px] text-slate-500 ml-auto">${m.created.split('T')[0]}</span>
+                    </div>
+                    <div class="flex items-center text-xs text-slate-300 gap-1">
+                        <span class="font-bold">${teamName}</span>
+                        <span class="text-slate-500">vs</span>
+                        <span>${enemyName}</span>
+                    </div>
+                </div>
+
+                <!-- 스탯 정보 -->
+                <div class="flex items-center gap-4 shrink-0 text-right">
+                    <div class="flex flex-col items-end w-20">
+                        <div class="font-bold text-[#f0e6d2] font-mono">${stats.k} / ${stats.d} / ${stats.a}</div>
+                        <div class="text-[10px] text-slate-500 font-bold">KDA</div>
+                    </div>
+                    <div class="flex flex-col items-end w-16">
+                        <div class="font-bold text-slate-300">${stats.damage > 1000 ? (stats.damage/1000).toFixed(1)+'K' : stats.damage}</div>
+                        <div class="text-[10px] text-slate-500 font-bold">DMG</div>
+                    </div>
+                    <div class="flex flex-col items-center w-10">
+                        <div class="font-black text-lg text-[#C8AA6E]">${stats.rating}</div>
+                        <div class="text-[10px] text-slate-500 font-bold">RT</div>
+                    </div>
+                </div>
+            </div>
+          `;
+      }).join('');
+
+      app.openModal(`📜 ${name} - Match History`, `
+        <div class="flex flex-col max-h-[60vh] overflow-y-auto pr-2 scrollbar">
+            ${html}
+        </div>
+      `);
+  },
+  toggleRole: (p) => {
+      // 챔피언 변경 기능 등을 위해 플레이어 이름 클릭 시 동작을 추가할 수 있음
+      // 현재는 간단히 로그만
+      console.log('Player clicked:', p);
+  },
   capture: async () => {
     let elId = 'report-capture-area';
     if (state.view === 'draft') elId = 'draft-screen';
@@ -791,7 +1012,7 @@ const act = {
         });
         
         const link = document.createElement('a');
-        link.download = `Draft_Capture_${new Date().getTime()}.png`;
+        link.download = `Capture_${new Date().getTime()}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
         app.toast('이미지 저장 완료!');
@@ -886,6 +1107,7 @@ const act = {
     const bPlayers = prevMatch ? prevMatch.blue.p : ['', '', '', '', ''];
     const rPlayers = prevMatch ? prevMatch.red.p : ['', '', '', '', ''];
     const title = prevMatch ? `SET ${prevMatch.gameNo + 1} SETUP` : 'NEW SERIES SETUP';
+    const currentSeriesTitle = prevMatch ? (prevMatch.seriesTitle || '') : ''; 
     
     const renderInputs = (prefix, values) => `
       <div class="grid grid-cols-5 gap-1 mt-2">
@@ -904,6 +1126,11 @@ const act = {
 
     app.openModal(title, `
       <div class="grid gap-6">
+        <div class="mb-4 border-b border-slate-700 pb-4">
+            <label class="block text-xs font-bold text-[#C8AA6E] mb-2 uppercase tracking-wider">Series Title</label>
+            <input id="inputSeriesTitle" value="${currentSeriesTitle}" ${prevMatch ? 'readonly class="w-full bg-[#050b14] border border-slate-800 p-2 text-slate-500"' : 'class="w-full bg-[#010a13] border border-slate-700 p-2 text-white focus:border-[#C8AA6E] outline-none" placeholder="시리즈 제목 입력 (예: 2026 윈터 시즌 결승)"'} >
+        </div>
+
         ${!prevMatch ? `<div class="mb-2">
           <div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">LOAD PRESET TEAM</div>
           <div class="grid grid-cols-1 gap-0">${presetsHtml}</div>
@@ -955,13 +1182,14 @@ const act = {
   },
   
   create: (seriesId=null, gNo=1) => {
+    const sTitle = document.getElementById('inputSeriesTitle')?.value.trim() || '';
     const bN = document.getElementById('newBN').value.trim() || 'BLUE';
     const rN = document.getElementById('newRN').value.trim() || 'RED';
     const bP = [0,1,2,3,4].map(i => document.getElementById(`newBP${i}`).value.trim());
     const rP = [0,1,2,3,4].map(i => document.getElementById(`newRP${i}`).value.trim());
     const isHard = document.getElementById('hardMode')?.checked || false;
     
-    app.createMatch(seriesId, gNo, {bN, rN, bP, rP, hardFearless: isHard});
+    app.createMatch(seriesId, gNo, {bN, rN, bP, rP, hardFearless: isHard, seriesTitle: sTitle});
     app.closeModal();
   },
   
