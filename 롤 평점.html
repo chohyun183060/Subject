@@ -657,7 +657,7 @@ const renderReport = (m) => {
             </div>
             <div class="flex flex-col flex-1 min-w-0">
                 <div class="flex justify-between items-center">
-                    <span class="font-bold text-blue-400 text-sm truncate cursor-pointer hover:text-white" onclick="act.toggleRole('${bP}')">${bP}</span>
+                    <span class="font-bold text-blue-400 text-sm cursor-pointer hover:text-white" onclick="act.toggleRole('${bP}')">${bP}</span>
                     <div class="flex gap-0.5">
                         <button onclick="act.setPotm('${bP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-amber-400 rounded">P</button>
                         <button onclick="act.setNordnam('${bP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-white rounded">N</button>
@@ -705,7 +705,7 @@ const renderReport = (m) => {
             </div>
             <div class="flex flex-col flex-1 min-w-0 items-end">
                 <div class="flex justify-between items-center w-full flex-row-reverse">
-                    <span class="font-bold text-red-400 text-sm truncate cursor-pointer hover:text-white" onclick="act.toggleRole('${rP}')">${rP}</span>
+                    <span class="font-bold text-red-400 text-sm cursor-pointer hover:text-white" onclick="act.toggleRole('${rP}')">${rP}</span>
                     <div class="flex gap-0.5">
                         <button onclick="act.setPotm('${rP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-amber-400 rounded">P</button>
                         <button onclick="act.setNordnam('${rP}')" class="text-[8px] px-1 bg-slate-800 text-slate-400 hover:text-white rounded">N</button>
@@ -1015,7 +1015,6 @@ const act = {
     }
   },
   loadBgmFile: (input) => {
-      if(isSpectator) return;
       const file = input.files[0];
       if(!file) return;
       const audio = document.getElementById('bgmPlayer');
@@ -1049,7 +1048,6 @@ const act = {
       app.save();
   },
   setPotm: (player) => {
-      if(isSpectator) return;
       const m = app.getMatch();
       m.potm = (m.potm === player) ? null : player;
       if (m.nordnam === player) m.nordnam = null;
@@ -1057,7 +1055,6 @@ const act = {
       app.render();
   },
   setNordnam: (player) => {
-      if(isSpectator) return;
       const m = app.getMatch();
       m.nordnam = (m.nordnam === player) ? null : player;
       if (m.potm === player) m.potm = null;
@@ -1065,7 +1062,6 @@ const act = {
       app.render();
   },
   swap: (side, idx) => {
-    if(isSpectator) return;
     if (!ui.swap) {
       ui.swap = { side, idx };
     } else {
@@ -1083,7 +1079,6 @@ const act = {
     app.render();
   },
   changeChamp: (p, cid) => {
-      if(isSpectator) return;
       const m = app.getMatch();
       if(m.ratings[p]) {
           m.ratings[p].champId = cid;
@@ -1092,7 +1087,6 @@ const act = {
       }
   },
   new: (prevMatch = null) => {
-    if(isSpectator) return;
     if (prevMatch && prevMatch.target) prevMatch = null;
     const roles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
     const bName = prevMatch ? prevMatch.blue.name : '';
@@ -1100,7 +1094,6 @@ const act = {
     const bPlayers = prevMatch ? prevMatch.blue.p : ['', '', '', '', ''];
     const rPlayers = prevMatch ? prevMatch.red.p : ['', '', '', '', ''];
     const title = prevMatch ? `SET ${prevMatch.gameNo + 1} SETUP` : 'NEW SERIES SETUP';
-    const currentSeriesTitle = prevMatch ? (prevMatch.seriesTitle || '') : ''; 
     
     const renderInputs = (prefix, values) => `
       <div class="grid grid-cols-5 gap-1 mt-2">
@@ -1119,11 +1112,6 @@ const act = {
 
     app.openModal(title, `
       <div class="grid gap-6">
-        <div class="mb-4 border-b border-slate-700 pb-4">
-            <label class="block text-xs font-bold text-[#C8AA6E] mb-2 uppercase tracking-wider">Series Title</label>
-            <input id="inputSeriesTitle" value="${currentSeriesTitle}" ${prevMatch ? 'readonly class="w-full bg-[#050b14] border border-slate-800 p-2 text-slate-500"' : 'class="w-full bg-[#010a13] border border-slate-700 p-2 text-white focus:border-[#C8AA6E] outline-none" placeholder="시리즈 제목 입력 (예: 2026 윈터 시즌 결승)"'} >
-        </div>
-
         ${!prevMatch ? `<div class="mb-2">
           <div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">LOAD PRESET TEAM</div>
           <div class="grid grid-cols-1 gap-0">${presetsHtml}</div>
@@ -1175,31 +1163,20 @@ const act = {
   },
   
   create: (seriesId=null, gNo=1) => {
-    const sTitle = document.getElementById('inputSeriesTitle')?.value.trim() || '';
     const bN = document.getElementById('newBN').value.trim() || 'BLUE';
     const rN = document.getElementById('newRN').value.trim() || 'RED';
     const bP = [0,1,2,3,4].map(i => document.getElementById(`newBP${i}`).value.trim());
     const rP = [0,1,2,3,4].map(i => document.getElementById(`newRP${i}`).value.trim());
     const isHard = document.getElementById('hardMode')?.checked || false;
     
-    app.createMatch(seriesId, gNo, {bN, rN, bP, rP, hardFearless: isHard, seriesTitle: sTitle});
+    app.createMatch(seriesId, gNo, {bN, rN, bP, rP, hardFearless: isHard});
     app.closeModal();
   },
   
-  load: (e) => { 
-      if(isSpectator) return;
-      state.currId = e.target.dataset.id; app.nav('draft'); 
-  },
-  del: (e) => { 
-      if(isSpectator) return;
-      if(confirm('삭제하시겠습니까?')){ state.matches = state.matches.filter(m=>m.id!==e.target.dataset.id); app.save(); } 
-  },
-  undo: () => { 
-      if(isSpectator) return;
-      const m=app.getMatch(); if(m.draft.idx>0){ m.draft.idx--; const last=m.draft.acts.pop(); if(last.t==='ban') m.draft.bans[last.s].pop(); else m.draft.picks[last.s].pop(); app.save(); } 
-  },
+  load: (e) => { state.currId = e.target.dataset.id; app.nav('draft'); },
+  del: (e) => { if(confirm('삭제하시겠습니까?')){ state.matches = state.matches.filter(m=>m.id!==e.target.dataset.id); app.save(); } },
+  undo: () => { const m=app.getMatch(); if(m.draft.idx>0){ m.draft.idx--; const last=m.draft.acts.pop(); if(last.t==='ban') m.draft.bans[last.s].pop(); else m.draft.picks[last.s].pop(); app.save(); } },
   pick: (id) => {
-    if(isSpectator) return;
     const m = app.getMatch();
     const step = DRAFT_STEPS[m.draft.idx];
     if(!step) return;
@@ -1223,16 +1200,9 @@ const act = {
     });
   },
   goReport: () => app.nav('report'),
-  rate: (p,k,v) => { 
-      if(isSpectator) return;
-      const m=app.getMatch(); m.ratings[p][k]=Number(v); app.save(); 
-  },
-  win: (e) => { 
-      if(isSpectator) return;
-      const m=app.getMatch(); m.result = m.result||{}; m.result.win = e.target.dataset.side; app.save(); 
-  },
+  rate: (p,k,v) => { const m=app.getMatch(); m.ratings[p][k]=Number(v); app.save(); },
+  win: (e) => { const m=app.getMatch(); m.result = m.result||{}; m.result.win = e.target.dataset.side; app.save(); },
   finish: () => {
-    if(isSpectator) return;
     const m=app.getMatch();
     if(!m.result?.win) { app.toast('승리 팀을 선택해주세요.'); return; }
     m.status = 'completed';
@@ -1249,7 +1219,6 @@ const act = {
     app.save();
   },
   editTitle: (e) => {
-      if(isSpectator) return;
       const id = e.target.dataset.id;
       const current = state.matches.find(m => m.seriesId === id)?.seriesTitle || '';
       app.openModal('제목 수정', 
