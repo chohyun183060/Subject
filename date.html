@@ -4,42 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>나만의 데이트 코스 플래너</title>
-    <!-- Tailwind CSS (스타일링용) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="text/javascript" src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=1rw74hfem5"></script>
+
     <style>
-        /* 지도가 전체 화면을 채우도록 설정 */
-        #map {
-            width: 100%;
-            height: 100vh;
-        }
-        .sidebar {
-            transition: all 0.3s ease;
-        }
+        #map { width: 100%; height: 100vh; }
+        .sidebar { transition: all 0.3s ease; }
     </style>
 </head>
 <body class="bg-gray-100 overflow-hidden">
 
-    <!-- API 키 입력 모달 (네이버 지도 ID가 없을 경우를 대비해 입력창 제공) -->
-    <div id="apiKeyModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
-            <h2 class="text-2xl font-bold mb-4 text-gray-800">네이버 지도 설정</h2>
-            <p class="text-gray-600 mb-4 text-sm">
-                지도를 불러오기 위해 <strong>Client ID</strong>가 필요합니다.<br>
-                (네이버 클라우드 플랫폼 Console에서 발급 가능)
-            </p>
-            <input type="text" id="clientIdInput" placeholder="Client ID 입력 (예: abcde12345)" 
-                   class="w-full border border-gray-300 p-3 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
-            <button onclick="loadMapScript()" 
-                    class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded transition">
-                지도 시작하기
-            </button>
-        </div>
-    </div>
-
-    <!-- 메인 레이아웃 -->
     <div class="flex h-screen relative">
         
-        <!-- 사이드바 (코스 리스트) -->
         <div class="sidebar w-80 bg-white shadow-lg flex flex-col z-10 absolute md:relative h-full transform -translate-x-full md:translate-x-0" id="sidebar">
             <div class="p-6 border-b border-gray-200 bg-green-50">
                 <h1 class="text-xl font-bold text-green-700">❤️ 데이트 코스</h1>
@@ -47,7 +24,6 @@
             </div>
             
             <div class="flex-1 overflow-y-auto p-4" id="courseList">
-                <!-- 코스 아이템이 여기에 추가됨 -->
                 <div class="text-center text-gray-400 mt-10">
                     아직 추가된 장소가 없습니다.<br>
                     지도를 클릭해보세요!
@@ -61,13 +37,12 @@
             </div>
         </div>
 
-        <!-- 지도 영역 -->
         <div class="flex-1 relative">
             <button onclick="toggleSidebar()" class="md:hidden absolute top-4 left-4 z-20 bg-white p-2 rounded shadow text-gray-700">
                 ☰ 목록
             </button>
             <div id="map" class="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
-                지도를 불러오는 중...
+                지도를 불러오는 중...<br>(화면이 안 나오면 콘솔 URL 설정을 확인하세요)
             </div>
         </div>
     </div>
@@ -79,64 +54,37 @@
         let path = [];
         let courseCount = 0;
 
-        // 1. 네이버 지도 스크립트 동적 로드
-        function loadMapScript() {
-            const clientId = document.getElementById('clientIdInput').value.trim();
-            if (!clientId) {
-                alert("Client ID를 입력해주세요.");
+        // 페이지 로드 시 바로 지도 실행
+        window.onload = function() {
+            if (typeof naver === 'undefined' || typeof naver.maps === 'undefined') {
+                alert("지도를 불러오지 못했습니다. 네이버 클라우드 콘솔의 Web 서비스 URL 설정을 확인해주세요.");
                 return;
             }
+            initMap();
+        };
 
-            // 모달 숨기기
-            document.getElementById('apiKeyModal').style.display = 'none';
-
-            // 스크립트 태그 생성 및 추가
-            const script = document.createElement('script');
-            script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}`;
-            script.async = true;
-            script.defer = true;
-            
-            script.onload = () => {
-                initMap();
-            };
-            
-            script.onerror = () => {
-                alert("지도를 불러오는데 실패했습니다. Client ID를 확인해주세요.");
-                document.getElementById('apiKeyModal').style.display = 'flex';
-            };
-
-            document.head.appendChild(script);
-        }
-
-        // 2. 지도 초기화
         function initMap() {
-            // 서울 시청 중심으로 지도 생성
             const mapOptions = {
                 center: new naver.maps.LatLng(37.5665, 126.9780),
                 zoom: 13
             };
-            
             map = new naver.maps.Map('map', mapOptions);
 
-            // 지도 클릭 이벤트 리스너 등록
             naver.maps.Event.addListener(map, 'click', function(e) {
                 addLocation(e.coord);
             });
         }
 
-        // 3. 위치 추가 및 선 그리기 로직
         function addLocation(coord) {
             courseCount++;
             
-            // A. 마커 생성
             const marker = new naver.maps.Marker({
                 position: coord,
                 map: map,
                 title: `코스 ${courseCount}`,
-                // 마커에 숫자 표시 (간단한 아이콘 대체 가능)
                 icon: {
                     content: `
-                        <div style="background-color: #ff5a5f; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
+                        <div style="background-color: #ff5a5f; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid white;">
                             ${courseCount}
                         </div>
                     `,
@@ -146,88 +94,58 @@
 
             markers.push(marker);
             path.push(coord);
-
-            // B. 경로(Polyline) 업데이트
             drawPolyline();
-
-            // C. 사이드바 리스트 업데이트
             updateSidebarList(courseCount);
         }
 
-        // 4. 선(Polyline) 그리기 함수
         function drawPolyline() {
-            // 기존 선이 있다면 삭제
-            if (polyline) {
-                polyline.setMap(null);
-            }
-
-            // 경로가 2개 이상일 때만 선을 그림
+            if (polyline) { polyline.setMap(null); }
             if (path.length > 1) {
                 polyline = new naver.maps.Polyline({
                     map: map,
                     path: path,
-                    strokeColor: '#ff5a5f', // 데이트 느낌의 붉은/분홍색
-                    strokeWeight: 5,
-                    strokeOpacity: 0.8,
+                    strokeColor: '#ff5a5f',
+                    strokeWeight: 6,
+                    strokeOpacity: 0.9,
                     strokeStyle: 'solid',
-                    startIcon: naver.maps.PointingIcon.CIRCLE,
-                    endIcon: naver.maps.PointingIcon.OPEN_ARROW
+                    strokeLineCap: 'round',
+                    strokeLineJoin: 'round'
                 });
             }
         }
 
-        // 5. 사이드바 UI 업데이트
         function updateSidebarList(index) {
             const listContainer = document.getElementById('courseList');
-            
-            // 첫 추가시 안내 메시지 삭제
-            if (index === 1) {
-                listContainer.innerHTML = '';
-            }
+            if (index === 1) { listContainer.innerHTML = ''; }
 
             const item = document.createElement('div');
             item.className = "flex items-center p-3 mb-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition";
             item.innerHTML = `
-                <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold mr-3">
+                <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold mr-3 shrink-0">
                     ${index}
                 </div>
-                <div>
-                    <div class="font-bold text-gray-700">장소 ${index}</div>
-                    <div class="text-xs text-gray-400">위도: ${path[path.length-1].y.toFixed(4)}, 경도: ${path[path.length-1].x.toFixed(4)}</div>
+                <div class="overflow-hidden">
+                    <div class="font-bold text-gray-700 truncate">장소 ${index}</div>
+                    <div class="text-xs text-gray-400 truncate">위도: ${path[path.length-1].y.toFixed(4)}, 경도: ${path[path.length-1].x.toFixed(4)}</div>
                 </div>
             `;
-            
             listContainer.appendChild(item);
-            
-            // 모바일에서 리스트 추가 시 스크롤 아래로
             listContainer.scrollTop = listContainer.scrollHeight;
         }
 
-        // 6. 초기화 함수
         function resetCourse() {
-            // 마커 지도에서 제거
             markers.forEach(marker => marker.setMap(null));
             markers = [];
-            
-            // 선 지도에서 제거
-            if (polyline) {
-                polyline.setMap(null);
-                polyline = null;
-            }
-            
+            if (polyline) { polyline.setMap(null); polyline = null; }
             path = [];
             courseCount = 0;
-            
-            // 리스트 초기화
             document.getElementById('courseList').innerHTML = `
                 <div class="text-center text-gray-400 mt-10">
-                    아직 추가된 장소가 없습니다.<br>
-                    지도를 클릭해보세요!
+                    아직 추가된 장소가 없습니다.<br>지도를 클릭해보세요!
                 </div>
             `;
         }
 
-        // 모바일용 사이드바 토글
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('-translate-x-full');
