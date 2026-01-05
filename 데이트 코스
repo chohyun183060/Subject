@@ -1,0 +1,241 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Heart, MapPin, Coffee, Utensils, Camera, Sun, Moon, 
+  Share2, Star, Navigation, ExternalLink, Filter 
+} from 'lucide-react';
+
+// --- 데이터 모델: 네이버 지도 리스트를 보고 이 형식으로 정리하시면 됩니다 ---
+const SEOUL_COURSES = [
+  {
+    id: 1,
+    title: "성수동 팝업 & 카페 투어",
+    description: "요즘 가장 핫한 팝업스토어와 감성 카페를 묶은 트렌디 코스",
+    region: "seongsu", // 지역: 성수
+    mood: "trendy",    // 분위기: 힙한
+    tags: ["#썸탈때", "#사진맛집", "#웨이팅주의"],
+    rating: 4.8,
+    image: "☕️",
+    naverMapLink: "https://naver.me/example1", // 실제 네이버 지도 공유 링크
+    spots: [
+      { name: "LCDC 서울", type: "복합문화", icon: <Camera className="w-3 h-3" /> },
+      { name: "피치스 도원", type: "볼거리", icon: <Sun className="w-3 h-3" /> },
+      { name: "로우커피스탠드", type: "카페", icon: <Coffee className="w-3 h-3" /> }
+    ]
+  },
+  {
+    id: 2,
+    title: "해방촌 노을 & 야경 산책",
+    description: "남산 타워가 보이는 루프탑 버거집과 산책로",
+    region: "itaewon", // 지역: 이태원/한남
+    mood: "romantic",  // 분위기: 로맨틱
+    tags: ["#기념일", "#야경", "#뷰맛집"],
+    rating: 4.9,
+    image: "🌆",
+    naverMapLink: "https://naver.me/example2",
+    spots: [
+      { name: "신흥시장", type: "구경", icon: <MapPin className="w-3 h-3" /> },
+      { name: "더백푸드트럭", type: "식사", icon: <Utensils className="w-3 h-3" /> },
+      { name: "남산 소월길", type: "산책", icon: <Moon className="w-3 h-3" /> }
+    ]
+  },
+  {
+    id: 3,
+    title: "연남동 숲길 피크닉",
+    description: "경의선 숲길을 따라 걷는 가벼운 산책과 맛집 탐방",
+    region: "hongdae", // 지역: 홍대/연남
+    mood: "casual",    // 분위기: 캐주얼
+    tags: ["#가볍게", "#산책", "#낮맥"],
+    rating: 4.6,
+    image: "🌳",
+    naverMapLink: "https://naver.me/example3",
+    spots: [
+      { name: "경의선숲길", type: "산책", icon: <Sun className="w-3 h-3" /> },
+      { name: "랜디스도넛", type: "디저트", icon: <Coffee className="w-3 h-3" /> },
+      { name: "바다회사랑", type: "저녁", icon: <Utensils className="w-3 h-3" /> }
+    ]
+  },
+  {
+    id: 4,
+    title: "압구정 로데오 럭셔리 다이닝",
+    description: "특별한 날을 위한 파인 다이닝과 칵테일 바",
+    region: "gangnam", // 지역: 강남/압구정
+    mood: "romantic",
+    tags: ["#플렉스", "#고급", "#성공적"],
+    rating: 4.9,
+    image: "🥂",
+    naverMapLink: "https://naver.me/example4",
+    spots: [
+      { name: "도산공원", type: "산책", icon: <Sun className="w-3 h-3" /> },
+      { name: "볼피노", type: "식사", icon: <Utensils className="w-3 h-3" /> },
+      { name: "스피크이지바", type: "술", icon: <Moon className="w-3 h-3" /> }
+    ]
+  }
+];
+
+// 지역 필터 정의
+const REGIONS = [
+  { id: 'all', label: '서울 전체' },
+  { id: 'seongsu', label: '성수/서울숲' },
+  { id: 'hongdae', label: '홍대/연남' },
+  { id: 'itaewon', label: '이태원/한남' },
+  { id: 'gangnam', label: '강남/압구정' },
+  { id: 'jongno', label: '종로/을지로' },
+];
+
+const App = () => {
+  const [selectedRegion, setSelectedRegion] = useState('all');
+  const [selectedMood, setSelectedMood] = useState('all');
+  const [courses, setCourses] = useState(SEOUL_COURSES);
+
+  // 필터링 로직
+  useEffect(() => {
+    let result = SEOUL_COURSES;
+    
+    if (selectedRegion !== 'all') {
+      result = result.filter(c => c.region === selectedRegion);
+    }
+    
+    if (selectedMood !== 'all') {
+      result = result.filter(c => c.mood === selectedMood);
+    }
+    
+    setCourses(result);
+  }, [selectedRegion, selectedMood]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-20 max-w-md mx-auto shadow-2xl overflow-hidden min-w-[320px]">
+      
+      {/* 상단 헤더 */}
+      <header className="bg-white px-5 py-4 sticky top-0 z-20 border-b border-slate-100">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              Seoul<span className="text-indigo-600">Vibe</span>
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">서울의 모든 데이트 코스</p>
+          </div>
+          <div className="bg-slate-100 p-2 rounded-full">
+            <Heart className="w-5 h-5 text-indigo-500 fill-indigo-100" />
+          </div>
+        </div>
+
+        {/* 지역 필터 (가로 스크롤) */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {REGIONS.map((region) => (
+            <button
+              key={region.id}
+              onClick={() => setSelectedRegion(region.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
+                selectedRegion === region.id
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {region.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <main className="px-4 py-4 space-y-4">
+        
+        {/* 무드 탭 (간단 필터) */}
+        <div className="flex justify-center bg-white p-1 rounded-xl shadow-sm border border-slate-100 mb-2">
+           {[
+             { id: 'all', label: '전체' },
+             { id: 'trendy', label: '🔥 힙한' },
+             { id: 'romantic', label: '💕 로맨틱' },
+             { id: 'casual', label: '👟 캐주얼' }
+           ].map(mood => (
+             <button
+               key={mood.id}
+               onClick={() => setSelectedMood(mood.id)}
+               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                 selectedMood === mood.id 
+                   ? 'bg-indigo-50 text-indigo-600' 
+                   : 'text-slate-400 hover:text-slate-600'
+               }`}
+             >
+               {mood.label}
+             </button>
+           ))}
+        </div>
+
+        {/* 코스 리스트 */}
+        {courses.map((course) => (
+          <article key={course.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-3xl">{course.image}</span>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-tight">{course.title}</h3>
+                  <div className="flex gap-1 mt-1">
+                    {course.tags.map((tag, i) => (
+                      <span key={i} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                 <span className="bg-yellow-50 text-yellow-600 text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1">
+                   <Star className="w-3 h-3 fill-yellow-600" /> {course.rating}
+                 </span>
+              </div>
+            </div>
+
+            <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+              {course.description}
+            </p>
+
+            {/* 미니 타임라인 */}
+            <div className="flex items-center gap-2 mb-5 overflow-x-auto text-sm text-slate-600">
+               {course.spots.map((spot, idx) => (
+                 <React.Fragment key={idx}>
+                   <div className="flex items-center gap-1 shrink-0 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                     <span className="text-indigo-400">{spot.icon}</span>
+                     <span className="font-semibold text-xs">{spot.name}</span>
+                   </div>
+                   {idx < course.spots.length - 1 && (
+                     <span className="text-slate-300">→</span>
+                   )}
+                 </React.Fragment>
+               ))}
+            </div>
+
+            {/* 액션 버튼 */}
+            <div className="flex gap-2">
+              <button 
+                onClick={() => window.open(course.naverMapLink, '_blank')}
+                className="flex-1 bg-[#03C75A] hover:bg-[#02b351] text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+              >
+                <img src="https://upload.wikimedia.org/wikipedia/commons/2/23/Naver_Map_icon.png" alt="N" className="w-4 h-4 rounded-sm bg-white p-[1px]" />
+                네이버 지도로 보기
+              </button>
+              <button className="flex-none w-12 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center transition-colors">
+                <Share2 className="w-5 h-5" />
+              </button>
+            </div>
+          </article>
+        ))}
+
+        {courses.length === 0 && (
+          <div className="py-20 text-center">
+             <div className="text-4xl mb-4">🌪️</div>
+             <p className="text-slate-400 font-medium">이런! 해당 지역/분위기의 코스가 없네요.</p>
+             <button 
+               onClick={() => {setSelectedRegion('all'); setSelectedMood('all');}}
+               className="mt-4 text-indigo-600 text-sm font-bold underline"
+             >
+               필터 초기화
+             </button>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+};
+
+export default App;
