@@ -6,11 +6,6 @@
     <title>나만의 데이트 코스 플래너</title>
     <!-- Tailwind CSS (스타일링용) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 네이버 지도 API 스크립트 (Client ID 내장됨) -->
-    <!-- 주의: 콘솔의 Web 서비스 URL에 실행 도메인이 등록되어 있어야 합니다. -->
-    <script type="text/javascript" src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=fzf7uvlj5j"></script>
-
     <style>
         /* 지도가 전체 화면을 채우도록 설정 */
         #map {
@@ -23,6 +18,23 @@
     </style>
 </head>
 <body class="bg-gray-100 overflow-hidden">
+
+    <!-- API 키 입력 모달 (네이버 지도 ID가 없을 경우를 대비해 입력창 제공) -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">네이버 지도 설정</h2>
+            <p class="text-gray-600 mb-4 text-sm">
+                지도를 불러오기 위해 <strong>Client ID</strong>가 필요합니다.<br>
+                (네이버 클라우드 플랫폼 Console에서 발급 가능)
+            </p>
+            <input type="text" id="clientIdInput" placeholder="Client ID 입력 (예: abcde12345)" 
+                   class="w-full border border-gray-300 p-3 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <button onclick="loadMapScript()" 
+                    class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded transition">
+                지도 시작하기
+            </button>
+        </div>
+    </div>
 
     <!-- 메인 레이아웃 -->
     <div class="flex h-screen relative">
@@ -55,8 +67,7 @@
                 ☰ 목록
             </button>
             <div id="map" class="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
-                <!-- 지도가 로드되지 않았을 때 표시될 메시지 -->
-                <div id="loadingMessage">지도를 불러오는 중...<br>(인증 실패 시 콘솔 URL 설정을 확인하세요)</div>
+                지도를 불러오는 중...
             </div>
         </div>
     </div>
@@ -68,16 +79,34 @@
         let path = [];
         let courseCount = 0;
 
-        // 페이지 로드 시 지도 초기화 시도
-        window.onload = function() {
-            // 네이버 지도 객체가 로드되었는지 확인
-            if (typeof naver === 'undefined' || typeof naver.maps === 'undefined') {
-                document.getElementById('loadingMessage').innerHTML = 
-                    "지도를 불러오지 못했습니다.<br>네이버 클라우드 콘솔에서 <strong>Web 서비스 URL</strong> 설정을 확인해주세요.";
+        // 1. 네이버 지도 스크립트 동적 로드
+        function loadMapScript() {
+            const clientId = document.getElementById('clientIdInput').value.trim();
+            if (!clientId) {
+                alert("Client ID를 입력해주세요.");
                 return;
             }
-            initMap();
-        };
+
+            // 모달 숨기기
+            document.getElementById('apiKeyModal').style.display = 'none';
+
+            // 스크립트 태그 생성 및 추가
+            const script = document.createElement('script');
+            script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}`;
+            script.async = true;
+            script.defer = true;
+            
+            script.onload = () => {
+                initMap();
+            };
+            
+            script.onerror = () => {
+                alert("지도를 불러오는데 실패했습니다. Client ID를 확인해주세요.");
+                document.getElementById('apiKeyModal').style.display = 'flex';
+            };
+
+            document.head.appendChild(script);
+        }
 
         // 2. 지도 초기화
         function initMap() {
@@ -104,10 +133,10 @@
                 position: coord,
                 map: map,
                 title: `코스 ${courseCount}`,
-                // 마커에 숫자 표시
+                // 마커에 숫자 표시 (간단한 아이콘 대체 가능)
                 icon: {
                     content: `
-                        <div style="background-color: #ff5a5f; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid white;">
+                        <div style="background-color: #ff5a5f; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
                             ${courseCount}
                         </div>
                     `,
@@ -138,11 +167,11 @@
                     map: map,
                     path: path,
                     strokeColor: '#ff5a5f', // 데이트 느낌의 붉은/분홍색
-                    strokeWeight: 6,
-                    strokeOpacity: 0.9,
+                    strokeWeight: 5,
+                    strokeOpacity: 0.8,
                     strokeStyle: 'solid',
-                    strokeLineCap: 'round',
-                    strokeLineJoin: 'round'
+                    startIcon: naver.maps.PointingIcon.CIRCLE,
+                    endIcon: naver.maps.PointingIcon.OPEN_ARROW
                 });
             }
         }
@@ -157,20 +186,20 @@
             }
 
             const item = document.createElement('div');
-            item.className = "flex items-center p-3 mb-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition animate-fade-in-up";
+            item.className = "flex items-center p-3 mb-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition";
             item.innerHTML = `
-                <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold mr-3 shrink-0">
+                <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold mr-3">
                     ${index}
                 </div>
-                <div class="overflow-hidden">
-                    <div class="font-bold text-gray-700 truncate">장소 ${index}</div>
-                    <div class="text-xs text-gray-400 truncate">위도: ${path[path.length-1].y.toFixed(4)}, 경도: ${path[path.length-1].x.toFixed(4)}</div>
+                <div>
+                    <div class="font-bold text-gray-700">장소 ${index}</div>
+                    <div class="text-xs text-gray-400">위도: ${path[path.length-1].y.toFixed(4)}, 경도: ${path[path.length-1].x.toFixed(4)}</div>
                 </div>
             `;
             
             listContainer.appendChild(item);
             
-            // 리스트 스크롤 아래로
+            // 모바일에서 리스트 추가 시 스크롤 아래로
             listContainer.scrollTop = listContainer.scrollHeight;
         }
 
