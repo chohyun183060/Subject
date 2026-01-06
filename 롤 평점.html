@@ -92,8 +92,8 @@
 
 <!-- 기존 Audio 태그 (직접 파일 로드용 Fallback) -->
 <audio id="bgmPlayer" loop class="hidden"></audio>
-<!-- YouTube BGM 플레이어 (화면 밖) -->
-<div id="yt-bgm" style="position:fixed; top:-9999px; left:-9999px; pointer-events:none;"></div>
+<!-- YouTube BGM 플레이어 (투명하게 처리하여 화면 안에 배치 - 브라우저 정책 우회용) -->
+<div id="yt-bgm" style="opacity: 0.01; position: absolute; z-index: -1; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none;"></div>
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
 
@@ -146,11 +146,11 @@ window.onYouTubeIframeAPIReady = function() {
     playerVars: {
       'playsinline': 1,
       'loop': 1,
-      'playlist': 'HdkDii-yt_U', // 반복 재생
+      'playlist': 'HdkDii-yt_U', // 반복 재생을 위해 ID 재입력
       'controls': 0,
       'disablekb': 1,
-      'fs': 0,
-      'origin': window.location.origin // 보안 정책 대응
+      'fs': 0
+      // origin 제거 (로컬 파일 호환성)
     },
     events: {
       'onReady': onPlayerReady
@@ -160,6 +160,7 @@ window.onYouTubeIframeAPIReady = function() {
 
 function onPlayerReady(event) {
     isYtReady = true;
+    event.target.unMute(); // 음소거 해제 (중요)
     event.target.setVolume(state.bgm.vol);
     if(state.bgm.playing && state.bgm.type === 'youtube') {
         event.target.playVideo();
