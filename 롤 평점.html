@@ -6,8 +6,7 @@
 <!-- Tailwind CSS v3 -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<!-- YouTube IFrame API -->
-<script src="https://www.youtube.com/iframe_api"></script>
+<!-- YouTube API Script 태그를 여기서 제거하고 아래쪽 JS에서 동적으로 로드합니다 -->
 <style>
 :root{color-scheme:dark} body{font-family:sans-serif; background:#010a13; color:#f0e6d2;}
 .scrollbar::-webkit-scrollbar{width:6px;height:6px;background:#0f172a}
@@ -137,8 +136,13 @@ let ui = { swap: null };
 let ytPlayer = null;
 let isYtReady = false;
 
-// YouTube API Callback (전역으로 확실하게 노출)
+// [수정됨] YouTube API Callback을 먼저 정의합니다.
 window.onYouTubeIframeAPIReady = function() {
+  // 로컬 파일(file://)이나 null origin일 경우를 대비해 처리
+  const origin = (window.location.origin === 'null' || window.location.protocol === 'file:') 
+                 ? '*' 
+                 : window.location.origin;
+
   ytPlayer = new YT.Player('yt-bgm', {
     height: '200',
     width: '200',
@@ -150,18 +154,32 @@ window.onYouTubeIframeAPIReady = function() {
       'controls': 0,
       'disablekb': 1,
       'fs': 0,
-      'origin': window.location.origin // 보안 정책 대응
+      'origin': origin // [수정됨] Origin 문제 해결
     },
     events: {
-      'onReady': onPlayerReady
+      'onReady': onPlayerReady,
+      'onError': (e) => {
+          console.error("YouTube Error:", e.data);
+          // 에러 발생 시 토스트 메시지 표시
+          // app.toast('유튜브 재생 오류: 영상이 재생될 수 없습니다.');
+      }
     }
   });
 }
 
+// [수정됨] API 스크립트를 동적으로 로드하여 순서를 보장합니다.
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+const firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
 function onPlayerReady(event) {
     isYtReady = true;
     event.target.setVolume(state.bgm.vol);
+    // 자동 재생 시도 (브라우저가 막을 수 있음 -> 클릭 시 해결됨)
     if(state.bgm.playing && state.bgm.type === 'youtube') {
+        // 일부 브라우저는 음소거 상태에서만 자동재생 허용
+        // event.target.mute(); 
         event.target.playVideo();
     }
 }
