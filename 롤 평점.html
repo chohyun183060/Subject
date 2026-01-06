@@ -137,8 +137,8 @@ let ui = { swap: null };
 let ytPlayer = null;
 let isYtReady = false;
 
-// YouTube API Callback
-function onYouTubeIframeAPIReady() {
+// YouTube API Callback (전역으로 확실하게 노출)
+window.onYouTubeIframeAPIReady = function() {
   ytPlayer = new YT.Player('yt-bgm', {
     height: '200',
     width: '200',
@@ -146,10 +146,11 @@ function onYouTubeIframeAPIReady() {
     playerVars: {
       'playsinline': 1,
       'loop': 1,
-      'playlist': 'HdkDii-yt_U', // 반복 재생을 위해 ID 재입력
+      'playlist': 'HdkDii-yt_U', // 반복 재생
       'controls': 0,
       'disablekb': 1,
-      'fs': 0
+      'fs': 0,
+      'origin': window.location.origin // 보안 정책 대응
     },
     events: {
       'onReady': onPlayerReady
