@@ -281,14 +281,28 @@ const renderErr = () => `<div class="p-8 text-center text-slate-500 h-full flex 
 const renderHome = () => {
     if(isSpectator) return renderErr(); 
     return `
-      <div class="p-4 max-w-5xl mx-auto grid gap-6 h-full overflow-y-auto scrollbar">
-        <div class="p-12 bg-[#091428] border border-[#C8AA6E] flex flex-col items-center justify-center text-center gap-6 shadow-2xl relative overflow-hidden shrink-0">
-          <div class="absolute inset-0 bg-[url('https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/bg-pattern.png')] opacity-10"></div>
-          <h2 class="text-4xl font-black text-[#f0e6d2] uppercase tracking-widest z-10 drop-shadow-lg">LoL Fearless Draft</h2>
-          <p class="text-sm text-[#a09b8c] z-10">양기훈의 존재의의는 타인에게 약탈 당함에 있으니 조현빈의 약탈은 정당하다 -대한민국 대법원 판결 발췌-</p>
-          <button data-act="new" class="mt-2 px-10 py-4 bg-[#C8AA6E] text-[#010a13] font-bold text-xl uppercase tracking-wider hover:bg-[#d6b97e] transition-all shadow-[0_0_20px_rgba(200,170,110,0.4)] z-10 transform hover:scale-105">시리즈 시작</button>
+      <div class="p-4 max-w-7xl mx-auto grid gap-6 h-full overflow-y-auto scrollbar relative z-10">
+        <!-- Main Hero Section with Spline 3D -->
+        <div class="h-[600px] rounded-xl border border-[#C8AA6E] flex flex-col items-center justify-center text-center relative overflow-hidden shrink-0 shadow-[0_0_50px_rgba(0,0,0,0.5)] group bg-[#091428]">
+          
+          <!-- Spline 3D Background -->
+          <div class="absolute inset-0 z-0">
+             <iframe src='https://my.spline.design/leagueoflegendscharacteranimationpicker-5PdwNUS59xGXf6sqN0TAYVgj/' frameborder='0' width='100%' height='100%'></iframe>
+          </div>
+
+          <!-- Dark Overlay for text readability (3D 위쪽에 텍스트가 보이도록 그라데이션) -->
+          <div class="absolute inset-0 bg-gradient-to-b from-[#010a13]/80 via-transparent to-[#010a13]/90 pointer-events-none z-0"></div>
+
+          <!-- Content -->
+          <div class="z-10 relative flex flex-col items-center gap-6 mt-40 pointer-events-none"> 
+            <h2 class="text-6xl font-black text-[#f0e6d2] uppercase tracking-widest drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]" style="text-shadow: 0 0 20px #C8AA6E;">LoL Fearless Draft</h2>
+            <p class="text-lg text-[#a09b8c] font-bold bg-black/50 px-4 py-2 rounded backdrop-blur-sm">양기훈의 존재의의는 타인에게 약탈 당함에 있으니 조현빈의 약탈은 정당하다</p>
+          </div>
+          
+          <button data-act="new" class="z-20 mt-8 px-12 py-5 bg-[#C8AA6E] text-[#010a13] font-black text-2xl uppercase tracking-wider hover:bg-[#d6b97e] hover:scale-105 transition-all shadow-[0_0_30px_rgba(200,170,110,0.6)] cursor-pointer">시리즈 시작</button>
         </div>
-        <div class="p-6 bg-[#091428] border border-slate-800">
+
+        <div class="p-6 bg-[#091428] border border-slate-800 rounded-lg">
           <h3 class="font-bold mb-4 text-[#a09b8c] uppercase text-sm tracking-wider">Recent Matches</h3>
           ${state.matches.length===0 ? '<div class="text-slate-600 text-center py-4">기록이 없습니다.</div>' : state.matches.slice(0,5).map(m=>`
             <div class="flex justify-between items-center p-4 border-b border-slate-800 hover:bg-slate-900 transition-colors">
