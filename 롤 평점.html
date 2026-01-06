@@ -285,9 +285,12 @@ const renderHome = () => {
         <!-- Main Hero Section with Spline 3D -->
         <div class="h-[600px] rounded-xl border border-[#C8AA6E] flex flex-col items-center justify-center text-center relative overflow-hidden shrink-0 shadow-[0_0_50px_rgba(0,0,0,0.5)] group bg-[#091428]">
           
+          <!-- Fallback Background (3D 로드 실패 시 보임) -->
+          <div class="absolute inset-0 z-0 bg-cover bg-center opacity-40" style="background-image: url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Azir_0.jpg');"></div>
+
           <!-- Spline 3D Background -->
-          <div class="absolute inset-0 z-0">
-             <iframe src='https://my.spline.design/leagueoflegendscharacteranimationpicker-5PdwNUS59xGXf6sqN0TAYVgj/' frameborder='0' width='100%' height='100%'></iframe>
+          <div class="absolute inset-0 z-0 opacity-80 mix-blend-lighten">
+             <iframe src='https://my.spline.design/leagueoflegendscharacteranimationpicker-5PdwNUS59xGXf6sqN0TAYVgj/' frameborder='0' width='100%' height='100%' allow="fullscreen" style="pointer-events: auto;"></iframe>
           </div>
 
           <!-- Dark Overlay for text readability (3D 위쪽에 텍스트가 보이도록 그라데이션) -->
@@ -299,7 +302,7 @@ const renderHome = () => {
             <p class="text-lg text-[#a09b8c] font-bold bg-black/50 px-4 py-2 rounded backdrop-blur-sm">양기훈의 존재의의는 타인에게 약탈 당함에 있으니 조현빈의 약탈은 정당하다</p>
           </div>
           
-          <button data-act="new" class="z-20 mt-8 px-12 py-5 bg-[#C8AA6E] text-[#010a13] font-black text-2xl uppercase tracking-wider hover:bg-[#d6b97e] hover:scale-105 transition-all shadow-[0_0_30px_rgba(200,170,110,0.6)] cursor-pointer">시리즈 시작</button>
+          <button data-act="new" class="z-20 mt-8 px-12 py-5 bg-[#C8AA6E] text-[#010a13] font-black text-2xl uppercase tracking-wider hover:bg-[#d6b97e] hover:scale-105 transition-all shadow-[0_0_30px_rgba(200,170,110,0.6)] cursor-pointer pointer-events-auto">시리즈 시작</button>
         </div>
 
         <div class="p-6 bg-[#091428] border border-slate-800 rounded-lg">
