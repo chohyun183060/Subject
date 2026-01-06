@@ -6,8 +6,6 @@
 <!-- Tailwind CSS v3 -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<!-- YouTube IFrame API -->
-<script src="https://www.youtube.com/iframe_api"></script>
 <style>
 :root{color-scheme:dark} body{font-family:sans-serif; background:#010a13; color:#f0e6d2;}
 .scrollbar::-webkit-scrollbar{width:6px;height:6px;background:#0f172a}
@@ -90,15 +88,15 @@
   </nav>
 </header>
 
-<!-- 기존 Audio 태그 (직접 파일 로드용 Fallback) -->
-<audio id="bgmPlayer" loop class="hidden"></audio>
-<!-- YouTube BGM 플레이어 (투명하게 처리하여 화면 안에 배치 - 브라우저 정책 우회용) -->
-<div id="yt-bgm" style="opacity: 0.01; position: absolute; z-index: -1; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none;"></div>
+<audio id="bgmPlayer" loop>
+    <source src="bgm.mp3" type="audio/mpeg">
+    <source src="2024 LCK 밴픽 브금  LCK Champ Select BGM - 황제리.mp3" type="audio/mpeg">
+</audio>
 
 <main id="app" class="flex-1 overflow-hidden relative"></main>
 
 <!-- 관전자 모드 오버레이 -->
-<div id="specStart" class="fixed inset-0 bg-black/90 z-[100] hidden flex-col items-center justify-center text-center cursor-pointer" onclick="this.style.display='none'; act.tryPlayBgm();">
+<div id="specStart" class="fixed inset-0 bg-black/90 z-[100] hidden flex-col items-center justify-center text-center cursor-pointer" onclick="this.style.display='none'; document.getElementById('bgmPlayer').play();">
     <h1 class="text-4xl font-black text-[#C8AA6E] mb-4">SPECTATOR MODE</h1>
     <p class="text-slate-400 text-sm animate-pulse">화면을 클릭하여 중계를 시작하세요</p>
 </div>
@@ -132,46 +130,19 @@ const TEAM_PRESETS = [
 const urlParams = new URLSearchParams(window.location.search);
 const isSpectator = urlParams.get('mode') === 'spectator';
 
-let state={matches:[],currId:null,view:'home',players:[],bgm:{vol:50, playing:true, type: 'youtube'}}, champs=[], ver='14.24.1';
+let state={matches:[],currId:null,view:'home',players:[],bgm:{vol:50, playing:true}}, champs=[], ver='14.24.1';
 let ui = { swap: null };
-let ytPlayer = null;
-let isYtReady = false;
-
-// YouTube API Callback (전역으로 확실하게 노출)
-window.onYouTubeIframeAPIReady = function() {
-  ytPlayer = new YT.Player('yt-bgm', {
-    height: '200',
-    width: '200',
-    videoId: 'HdkDii-yt_U', // 요청하신 영상 ID
-    playerVars: {
-      'playsinline': 1,
-      'loop': 1,
-      'playlist': 'HdkDii-yt_U', // 반복 재생을 위해 ID 재입력
-      'controls': 0,
-      'disablekb': 1,
-      'fs': 0
-      // origin 제거 (로컬 파일 호환성)
-    },
-    events: {
-      'onReady': onPlayerReady
-    }
-  });
-}
-
-function onPlayerReady(event) {
-    isYtReady = true;
-    event.target.unMute(); // 음소거 해제 (중요)
-    event.target.setVolume(state.bgm.vol);
-    if(state.bgm.playing && state.bgm.type === 'youtube') {
-        event.target.playVideo();
-    }
-}
 
 const getImgUrl = (id, type='square') => {
     if(!id) return '';
+    
+    // 피들스틱 대소문자 이슈 완벽 해결
+    // 'FiddleSticks'(구 ID, 대문자 S)가 들어오면 구형 일러스트가 반환됨
+    // 따라서 무조건 'Fiddlesticks'(신 ID, 소문자 s)로 변환
     if (id === 'FiddleSticks' || id.toLowerCase() === 'fiddlesticks') {
         id = 'Fiddlesticks';
     }
+    
     if (type === 'splash') return `${API}/img/champion/splash/${id}_0.jpg`; 
     return `${API}/${ver}/img/champion/${id}.png`;
 };
@@ -185,8 +156,6 @@ function createEmptyRatings(players) {
 }
 
 const app = {
-  bgTimer: null, // 배경 전환 타이머
-
   init: async () => {
     if(isSpectator) {
         document.getElementById('navButtons').style.display = 'none';
@@ -207,8 +176,10 @@ const app = {
       ver = v[0];
       const d = await(await fetch(`${API}/${ver}/data/ko_KR/champion.json`)).json();
       
+      // 챔피언 목록 로드 시 ID 보정
       champs = Object.values(d.data).map(c => {
           let cid = c.id;
+          // 여기서도 피들스틱 ID를 강제로 최신형으로 변환해둡니다.
           if(cid === 'FiddleSticks') cid = 'Fiddlesticks';
           return { id: cid, name: c.name };
       }).sort((a,b)=>a.name.localeCompare(b.name));
@@ -219,8 +190,6 @@ const app = {
     if(s) {
         const loaded = JSON.parse(s);
         state = { ...state, ...loaded };
-        // BGM 타입 기본값 설정 (기존 데이터 호환)
-        if(!state.bgm.type) state.bgm.type = 'youtube';
     }
     
     if(isSpectator && state.matches.length > 0) {
@@ -232,15 +201,22 @@ const app = {
         state.view = currentMatch && currentMatch.status === 'completed' ? 'report' : 'draft';
     }
 
+    const audio = document.getElementById('bgmPlayer');
     const volInput = document.getElementById('bgmVol');
-    if(!state.bgm) state.bgm = {vol:50, playing:true, type: 'youtube'};
+    if(!state.bgm) state.bgm = {vol:50, playing:true};
     
-    if(volInput) {
+    if(audio && volInput) {
+        audio.volume = state.bgm.vol / 100;
         volInput.value = state.bgm.vol;
     }
 
     app.updateBgmIcon();
     app.render();
+    
+    if(state.bgm.playing && !isSpectator) {
+        const p = audio.play();
+        if(p) p.catch(e => {});
+    }
   },
   
   save: () => { 
@@ -255,7 +231,8 @@ const app = {
   
   updateBgmIcon: () => {
       const btn = document.getElementById('bgmBtn');
-      const isPlaying = state.bgm.playing;
+      const audio = document.getElementById('bgmPlayer');
+      const isPlaying = audio && !audio.paused; 
       if(btn) {
           btn.innerHTML = isPlaying
             ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
@@ -314,84 +291,15 @@ const app = {
   render: () => {
     const root = document.getElementById('app');
     const m = app.getMatch();
-    
-    // 뷰 렌더링
-    if(state.view==='home') {
-        root.innerHTML = renderHome();
-        app.startBgRotation(); // 홈이면 배경 전환 시작
-    }
-    else {
-        app.stopBgRotation(); // 다른 뷰면 배경 전환 정지
-        if(state.view==='draft') root.innerHTML = m ? renderDraft(m) : renderErr();
-        else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
-        else if(state.view==='history') root.innerHTML = renderHistory();
-        else if(state.view==='stats') root.innerHTML = renderStats();
-    }
+    if(state.view==='home') root.innerHTML = renderHome();
+    else if(state.view==='draft') root.innerHTML = m ? renderDraft(m) : renderErr();
+    else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
+    else if(state.view==='history') root.innerHTML = renderHistory();
+    else if(state.view==='stats') root.innerHTML = renderStats();
     
     const volInput = document.getElementById('bgmVol');
     if(volInput && state.bgm) volInput.value = state.bgm.vol;
     app.updateBgmIcon();
-  },
-  
-  // 배경 전환 로직 시작
-  startBgRotation: () => {
-      if(app.bgTimer) clearInterval(app.bgTimer);
-      
-      app.bgTimer = setInterval(() => {
-          app.rotateBg();
-      }, 8000); // 8초마다 전환
-  },
-
-  // 배경 전환 로직 정지
-  stopBgRotation: () => {
-      if(app.bgTimer) {
-          clearInterval(app.bgTimer);
-          app.bgTimer = null;
-      }
-  },
-
-  // 실제 배경 DOM 조작 함수 (교차 페이드 로직 개선)
-  rotateBg: () => {
-      const el = document.getElementById('hero-bg-container');
-      if(!el || champs.length === 0) return;
-      
-      // 랜덤 챔피언 선택
-      const c = champs[Math.floor(Math.random() * champs.length)];
-      const nextImg = getImgUrl(c.id, 'splash');
-      
-      // 새 배경 div 생성
-      const newDiv = document.createElement('div');
-      newDiv.className = "absolute inset-0 z-0 bg-cover bg-center animate-ken-burns transition-opacity duration-1000 ease-in-out";
-      newDiv.style.backgroundImage = `url('${nextImg}')`;
-      newDiv.style.opacity = "0"; // 처음엔 투명
-      
-      // 새 이미지를 DOM에 추가
-      el.appendChild(newDiv);
-      
-      // 기존에 존재하던 배경 이미지들 찾기 (방금 추가한 newDiv 제외)
-      const oldDivs = Array.from(el.children).filter(d => d !== newDiv);
-      
-      // 다음 프레임에 애니메이션 시작
-      requestAnimationFrame(() => {
-          setTimeout(() => {
-              // 새 이미지는 불투명도 0.6으로 등장 (페이드 인)
-              newDiv.style.opacity = "0.6";
-              
-              // 기존 이미지들은 투명하게 (페이드 아웃)
-              oldDivs.forEach(d => {
-                  d.style.opacity = "0";
-              });
-          }, 50);
-      });
-      
-      // 전환 시간(1.2초) 후 기존 이미지 완전 삭제
-      setTimeout(() => {
-          oldDivs.forEach(d => {
-              if (d.parentNode === el) {
-                  el.removeChild(d);
-              }
-          });
-      }, 1200);
   },
   
   openModal: (ti, bo, fo='') => {
@@ -409,6 +317,7 @@ const renderErr = () => `<div class="p-8 text-center text-slate-500 h-full flex 
 const renderHome = () => {
     if(isSpectator) return renderErr(); 
     
+    // 파티클 생성 함수
     const generateParticles = () => {
         let particles = '';
         for(let i=0; i<15; i++) {
@@ -424,21 +333,21 @@ const renderHome = () => {
 
     return `
       <div class="p-4 max-w-7xl mx-auto grid gap-6 h-full overflow-y-auto scrollbar relative z-10">
-        <!-- Main Hero Section -->
+        <!-- Main Hero Section (Cinematic No-Iframe) -->
         <div class="h-[600px] rounded-xl border border-[#C8AA6E] flex flex-col items-center justify-center text-center relative overflow-hidden shrink-0 shadow-[0_0_50px_rgba(0,0,0,0.5)] group bg-[#091428]">
           
-          <!-- Background Container for Rotation -->
-          <div id="hero-bg-container" class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-              <!-- Initial Background (Azir) -->
-              <div class="absolute inset-0 z-0 bg-cover bg-center animate-ken-burns transition-opacity duration-1000" style="background-image: url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Azir_0.jpg'); opacity: 0.6;"></div>
-          </div>
+          <!-- Cinematic Animated Background -->
+          <div class="absolute inset-0 z-0 bg-cover bg-center animate-ken-burns" style="background-image: url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Azir_0.jpg'); opacity: 0.6;"></div>
 
+          <!-- Particles -->
           <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden">
               ${generateParticles()}
           </div>
 
+          <!-- Dark Overlay for text readability -->
           <div class="absolute inset-0 bg-gradient-to-b from-[#010a13]/80 via-transparent to-[#010a13]/90 pointer-events-none z-0"></div>
 
+          <!-- Content -->
           <div class="z-10 relative flex flex-col items-center gap-6 mt-40 pointer-events-none"> 
             <h2 class="text-6xl font-black text-[#f0e6d2] uppercase tracking-widest drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]" style="text-shadow: 0 0 20px #C8AA6E;">LoL Fearless Draft</h2>
             <p class="text-lg text-[#a09b8c] font-bold bg-black/50 px-4 py-2 rounded backdrop-blur-sm">양기훈의 존재의의는 타인에게 약탈 당함에 있으니 조현빈의 약탈은 정당하다</p>
@@ -583,6 +492,7 @@ const renderMatchHeader = (match) => {
       </div>
     `;
 };
+
 const renderDraft = (m) => {
   const isDone = m.draft.idx >= DRAFT_STEPS.length;
   const currentStep = DRAFT_STEPS[m.draft.idx];
@@ -691,6 +601,7 @@ const renderDraft = (m) => {
     </div>
   `;
 };
+
 const renderTeamCol = (m, side) => {
   const isB = side==='BLUE';
   const t = isB ? m.blue : m.red;
@@ -759,6 +670,8 @@ const renderTeamCol = (m, side) => {
     </div>
   `;
 };
+
+// 통합된 리포트 렌더링 (평점입력 + 딜량그래프)
 const renderReport = (m) => {
   const bluePlayers = (m.blue.p || []).filter(Boolean);
   const redPlayers  = (m.red.p || []).filter(Boolean);
@@ -1172,13 +1085,6 @@ const act = {
   loadBgmFile: (input) => {
       const file = input.files[0];
       if(!file) return;
-      
-      // 유튜브 정지
-      if(ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
-          ytPlayer.pauseVideo();
-      }
-      state.bgm.type = 'file';
-
       const audio = document.getElementById('bgmPlayer');
       const url = URL.createObjectURL(file);
       audio.src = url;
@@ -1189,47 +1095,23 @@ const act = {
       }).catch(e => console.log(e));
   },
   toggleBgm: () => {
-      // YouTube Mode
-      if(state.bgm.type === 'youtube' && ytPlayer) {
-          if(state.bgm.playing) {
-              ytPlayer.pauseVideo();
-              state.bgm.playing = false;
-          } else {
-              ytPlayer.playVideo();
+      const audio = document.getElementById('bgmPlayer');
+      if(audio) {
+          if(audio.paused) {
+              audio.play();
               state.bgm.playing = true;
-          }
-      } 
-      // File Mode
-      else {
-          const audio = document.getElementById('bgmPlayer');
-          if(audio) {
-              if(audio.paused) {
-                  audio.play();
-                  state.bgm.playing = true;
-              } else {
-                  audio.pause();
-                  state.bgm.playing = false;
-              }
+          } else {
+              audio.pause();
+              state.bgm.playing = false;
           }
       }
       app.save();
       app.updateBgmIcon();
   },
-  tryPlayBgm: () => {
-      // 상호작용 시 BGM 재생 시도
-      if(state.bgm.playing) {
-          if(state.bgm.type === 'youtube' && ytPlayer) ytPlayer.playVideo();
-          else document.getElementById('bgmPlayer')?.play();
-      }
-  },
   setVolume: (v) => {
       const audio = document.getElementById('bgmPlayer');
       const vol = v / 100;
-      
-      // Control both for safety
       if(audio) audio.volume = vol;
-      if(ytPlayer && isYtReady) ytPlayer.setVolume(v);
-      
       state.bgm.vol = v;
       app.save();
   },
@@ -1431,8 +1313,12 @@ document.addEventListener('click', e => {
   if(t) act[t.dataset.act](e);
   
   // 첫 클릭 시 오디오 강제 재생 (브라우저 정책 대응)
-  // 클릭할 때마다 BGM 재생 시도
-  act.tryPlayBgm();
+  if(state.bgm && state.bgm.playing) {
+      const audio = document.getElementById('bgmPlayer');
+      if(audio && audio.paused) {
+          audio.play().then(() => {}).catch(err => {});
+      }
+  }
 });
 
 document.addEventListener('change', e => {
