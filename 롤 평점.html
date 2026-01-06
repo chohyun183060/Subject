@@ -183,6 +183,8 @@ function createEmptyRatings(players) {
 }
 
 const app = {
+  bgTimer: null, // 배경 전환 타이머
+
   init: async () => {
     if(isSpectator) {
         document.getElementById('navButtons').style.display = 'none';
@@ -310,15 +312,84 @@ const app = {
   render: () => {
     const root = document.getElementById('app');
     const m = app.getMatch();
-    if(state.view==='home') root.innerHTML = renderHome();
-    else if(state.view==='draft') root.innerHTML = m ? renderDraft(m) : renderErr();
-    else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
-    else if(state.view==='history') root.innerHTML = renderHistory();
-    else if(state.view==='stats') root.innerHTML = renderStats();
+    
+    // 뷰 렌더링
+    if(state.view==='home') {
+        root.innerHTML = renderHome();
+        app.startBgRotation(); // 홈이면 배경 전환 시작
+    }
+    else {
+        app.stopBgRotation(); // 다른 뷰면 배경 전환 정지
+        if(state.view==='draft') root.innerHTML = m ? renderDraft(m) : renderErr();
+        else if(state.view==='report') root.innerHTML = m ? renderReport(m) : renderErr();
+        else if(state.view==='history') root.innerHTML = renderHistory();
+        else if(state.view==='stats') root.innerHTML = renderStats();
+    }
     
     const volInput = document.getElementById('bgmVol');
     if(volInput && state.bgm) volInput.value = state.bgm.vol;
     app.updateBgmIcon();
+  },
+  
+  // 배경 전환 로직 시작
+  startBgRotation: () => {
+      if(app.bgTimer) clearInterval(app.bgTimer);
+      
+      app.bgTimer = setInterval(() => {
+          app.rotateBg();
+      }, 8000); // 8초마다 전환
+  },
+
+  // 배경 전환 로직 정지
+  stopBgRotation: () => {
+      if(app.bgTimer) {
+          clearInterval(app.bgTimer);
+          app.bgTimer = null;
+      }
+  },
+
+  // 실제 배경 DOM 조작 함수 (교차 페이드 로직 개선)
+  rotateBg: () => {
+      const el = document.getElementById('hero-bg-container');
+      if(!el || champs.length === 0) return;
+      
+      // 랜덤 챔피언 선택
+      const c = champs[Math.floor(Math.random() * champs.length)];
+      const nextImg = getImgUrl(c.id, 'splash');
+      
+      // 새 배경 div 생성
+      const newDiv = document.createElement('div');
+      newDiv.className = "absolute inset-0 z-0 bg-cover bg-center animate-ken-burns transition-opacity duration-1000 ease-in-out";
+      newDiv.style.backgroundImage = `url('${nextImg}')`;
+      newDiv.style.opacity = "0"; // 처음엔 투명
+      
+      // 새 이미지를 DOM에 추가
+      el.appendChild(newDiv);
+      
+      // 기존에 존재하던 배경 이미지들 찾기 (방금 추가한 newDiv 제외)
+      const oldDivs = Array.from(el.children).filter(d => d !== newDiv);
+      
+      // 다음 프레임에 애니메이션 시작
+      requestAnimationFrame(() => {
+          setTimeout(() => {
+              // 새 이미지는 불투명도 0.6으로 등장 (페이드 인)
+              newDiv.style.opacity = "0.6";
+              
+              // 기존 이미지들은 투명하게 (페이드 아웃)
+              oldDivs.forEach(d => {
+                  d.style.opacity = "0";
+              });
+          }, 50);
+      });
+      
+      // 전환 시간(1.2초) 후 기존 이미지 완전 삭제
+      setTimeout(() => {
+          oldDivs.forEach(d => {
+              if (d.parentNode === el) {
+                  el.removeChild(d);
+              }
+          });
+      }, 1200);
   },
   
   openModal: (ti, bo, fo='') => {
@@ -354,7 +425,11 @@ const renderHome = () => {
         <!-- Main Hero Section -->
         <div class="h-[600px] rounded-xl border border-[#C8AA6E] flex flex-col items-center justify-center text-center relative overflow-hidden shrink-0 shadow-[0_0_50px_rgba(0,0,0,0.5)] group bg-[#091428]">
           
-          <div class="absolute inset-0 z-0 bg-cover bg-center animate-ken-burns" style="background-image: url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Azir_0.jpg'); opacity: 0.6;"></div>
+          <!-- Background Container for Rotation -->
+          <div id="hero-bg-container" class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+              <!-- Initial Background (Azir) -->
+              <div class="absolute inset-0 z-0 bg-cover bg-center animate-ken-burns transition-opacity duration-1000" style="background-image: url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Azir_0.jpg'); opacity: 0.6;"></div>
+          </div>
 
           <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden">
               ${generateParticles()}
@@ -444,7 +519,19 @@ const renderHistory = () => {
     `;
 };
 
-// ... (renderMatchHeader, renderDraft, renderTeamCol, renderReport, renderStats 함수들은 기존과 동일)
+function getScore(match) {
+    const series = state.matches.filter(m => m.seriesId === match.seriesId && m.status === 'completed');
+    let blueWins = 0, redWins = 0;
+    series.forEach(m => {
+        if (m.result?.win === 'BLUE') {
+            if (m.blue.name === match.blue.name) blueWins++; else if (m.blue.name === match.red.name) redWins++;
+        } else if (m.result?.win === 'RED') {
+            if (m.red.name === match.blue.name) blueWins++; else if (m.red.name === match.red.name) redWins++;
+        }
+    });
+    return { blue: blueWins, red: redWins };
+}
+
 const renderMatchHeader = (match) => {
     const step = DRAFT_STEPS[match.draft.idx] || {};
     const isDone = match.draft.idx >= DRAFT_STEPS.length;
@@ -988,6 +1075,8 @@ const act = {
           (m.blue.p.includes(name) || m.red.p.includes(name))
       );
 
+      // history.sort((a,b) => new Date(b.created) - new Date(a.created)); 
+
       const html = history.length === 0 ? '<div class="text-center text-slate-500 py-4">기록이 없습니다.</div>' : 
         history.map(m => {
           const stats = m.ratings[name];
@@ -1047,6 +1136,8 @@ const act = {
       `);
   },
   toggleRole: (p) => {
+      // 챔피언 변경 기능 등을 위해 플레이어 이름 클릭 시 동작을 추가할 수 있음
+      // 현재는 간단히 로그만
       console.log('Player clicked:', p);
   },
   capture: async () => {
@@ -1140,7 +1231,6 @@ const act = {
       state.bgm.vol = v;
       app.save();
   },
-  // ... (나머지 setPotm, setNordnam, swap, changeChamp, new, swapInput, applyPreset, create, load, del, undo, pick, filter, goReport, rate, win, finish, editTitle, saveTitle 함수들은 기존과 동일)
   setPotm: (player) => {
       const m = app.getMatch();
       m.potm = (m.potm === player) ? null : player;
