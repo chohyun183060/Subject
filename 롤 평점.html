@@ -138,21 +138,19 @@ let ytPlayer = null;
 let isYtReady = false;
 
 // YouTube API Callback (전역으로 확실하게 노출)
-// YouTube API Callback (전역으로 확실하게 노출)
 window.onYouTubeIframeAPIReady = function() {
   ytPlayer = new YT.Player('yt-bgm', {
     height: '200',
     width: '200',
-    videoId: 'HdkDii-yt_U', // 요청하신 영상 ID (2024 Worlds Theme)
+    videoId: 'HdkDii-yt_U', // 요청하신 영상 ID
     playerVars: {
-      'autoplay': 1,       // 자동 재생 켜기
       'playsinline': 1,
       'loop': 1,
-      'playlist': 'HdkDii-yt_U', // 반복 재생을 위해 ID 재입력 필수
+      'playlist': 'HdkDii-yt_U', // 반복 재생을 위해 ID 재입력
       'controls': 0,
       'disablekb': 1,
-      'fs': 0,
-      'mute': 1            // 중요: 자동 재생 성공률을 높이기 위해 처음엔 음소거
+      'fs': 0
+      // origin 제거 (로컬 파일 호환성)
     },
     events: {
       'onReady': onPlayerReady
@@ -162,18 +160,11 @@ window.onYouTubeIframeAPIReady = function() {
 
 function onPlayerReady(event) {
     isYtReady = true;
-    event.target.playVideo(); // 영상 재생 시작 (음소거 상태)
-
-    // 브라우저 정책 우회: 사용자가 화면을 클릭하는 순간 소리를 켭니다.
-    const unmuteOnce = () => {
-        if(ytPlayer && typeof ytPlayer.unMute === 'function') {
-            ytPlayer.unMute();
-            ytPlayer.setVolume(state.bgm.vol);
-            // 클릭 리스너 제거 (한 번만 실행하면 됨)
-            document.body.removeEventListener('click', unmuteOnce);
-        }
-    };
-    document.body.addEventListener('click', unmuteOnce);
+    event.target.unMute(); // 음소거 해제 (중요)
+    event.target.setVolume(state.bgm.vol);
+    if(state.bgm.playing && state.bgm.type === 'youtube') {
+        event.target.playVideo();
+    }
 }
 
 const getImgUrl = (id, type='square') => {
