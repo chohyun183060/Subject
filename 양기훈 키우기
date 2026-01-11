@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>양기훈 키우기 - 버그수정판</title>
+    <style>
+        /* 스타일 (CSS) */
+        :root {
+            --primary-color: #ff6b6b;
+            --secondary-color: #4ecdc4;
+            --bg-color: #2c3e50;
+            --panel-color: #34495e;
+            --text-color: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Jua', sans-serif, system-ui;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            user-select: none; /* 드래그 방지 */
+            -webkit-user-select: none;
+            overflow: hidden;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 450px;
+            background-color: var(--panel-color);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 90vh;
+            position: relative;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 10px;
+        }
+
+        h1 { margin: 0; font-size: 1.8rem; color: var(--secondary-color); }
+        .subtitle { font-size: 0.9rem; color: #bdc3c7; }
+
+        /* 메인 캐릭터 영역 */
+        .character-section {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.05s;
+            border: 2px solid transparent;
+        }
+
+        .character-section:active { 
+            transform: scale(0.98); 
+            background: rgba(0,0,0,0.3);
+            border-color: var(--secondary-color);
+        }
+
+        /* 중요: 내부 요소가 클릭을 방해하지 않도록 설정 */
+        .character-section > * {
+            pointer-events: none;
+        }
+
+        .kihoon-avatar {
+            font-size: 8rem;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+        }
+
+        .kihoon-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .level-badge {
+            background-color: var(--secondary-color);
+            color: #fff;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        /* 정보 표시 영역 */
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .stat-box { text-align: center; }
+        .stat-label { font-size: 0.8rem; color: #bdc3c7; }
+        .stat-value { font-size: 1.2rem; font-weight: bold; }
+        .gold-value { color: #f1c40f; }
+
+        /* 상점 영역 */
+        .shop-section {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 10px;
+            height: 35%;
+            overflow-y: auto;
+        }
+
+        .upgrade-btn {
+            width: 100%;
+            background-color: var(--secondary-color);
+            border: none;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .upgrade-btn:disabled {
+            background-color: #7f8c8d;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .upgrade-btn:not(:disabled):hover { filter: brightness(1.1); }
+        
+        .btn-info { display: flex; flex-direction: column; align-items: flex-start; text-align: left;}
+        .btn-cost { background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 5px; font-size: 0.9rem; min-width: 60px; text-align: center;}
+
+        /* 클릭 이펙트 애니메이션 */
+        .click-effect {
+            position: absolute;
+            color: #f1c40f;
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none;
+            z-index: 100;
+            animation: floatUp 0.8s ease-out forwards;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-80px) scale(1.2); opacity: 0; }
+        }
+
+        /* 리셋 버튼 */
+        .reset-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+        }
+        .reset-btn:hover { background: rgba(231, 76, 60, 1); color: white; }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <button class="reset-btn" onclick="resetGame()">데이터 초기화</button>
+    <header>
+        <h1>양기훈 키우기</h1>
+        <div class="subtitle">화면 중앙을 클릭해서 돈을 버세요!</div>
+    </header>
+
+    <div class="character-section" id="click-zone">
+        <div class="level-badge" id="level-display">Lv. 1</div>
+        <div class="kihoon-avatar" id="avatar">👶</div>
+        <div class="kihoon-title" id="title-display">응애 기훈</div>
+        
+        <div style="width: 80%; background:#555; height: 10px; border-radius: 5px; margin-top:10px; overflow:hidden; position:relative;">
+            <div id="exp-bar" style="width: 0%; background: #f1c40f; height: 100%; transition: width 0.2s;"></div>
+        </div>
+        <div style="font-size: 0.8rem; margin-top: 5px; color:#aaa;">터치하여 성장시키세요!</div>
+    </div>
+
+    <div class="stats-container">
+        <div class="stat-box">
+            <div class="stat-label">보유 골드</div>
+            <div class="stat-value gold-value" id="gold-display">0 G</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">초당 수입</div>
+            <div class="stat-value" id="dps-display">0 / sec</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">클릭당 골드</div>
+            <div class="stat-value" id="click-power-display">1</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">현재 레벨</div>
+            <div class="stat-value" id="level-num-display">1</div>
+        </div>
+    </div>
+
+    <div class="shop-section">
+        <button class="upgrade-btn" id="btn-upgrade-click" onclick="upgradeClick()">
+            <div class="btn-info">
+                <span>💪 근력 운동</span>
+                <span style="font-size: 0.75rem; color: #ccc;">클릭당 골드 +1</span>
+            </div>
+            <div class="btn-cost" id="cost-click">10 G</div>
+        </button>
+
+        <button class="upgrade-btn" id="btn-hire-friend" onclick="hireFriend()">
+            <div class="btn-info">
+                <span>🤝 친구 섭외</span>
+                <span style="font-size: 0.75rem; color: #ccc;">초당 골드 +1</span>
+            </div>
+            <div class="btn-cost" id="cost-friend">50 G</div>
+        </button>
+
+        <button class="upgrade-btn" id="btn-buy-pc" onclick="buyPC()">
+            <div class="btn-info">
+                <span>💻 방송 장비</span>
+                <span style="font-size: 0.75rem; color: #ccc;">초당 골드 +10</span>
+            </div>
+            <div class="btn-cost" id="cost-pc">500 G</div>
+        </button>
+
+        <button class="upgrade-btn" id="btn-buy-building" onclick="buyBuilding()">
+            <div class="btn-info">
+                <span>🏢 건물주 되기</span>
+                <span style="font-size: 0.75rem; color: #ccc;">초당 골드 +100</span>
+            </div>
+            <div class="btn-cost" id="cost-building">5000 G</div>
+        </button>
+    </div>
+</div>
+
+<script>
+    /* 자바스크립트 엔진 */
+
+    // 기본 게임 데이터
+    const defaultData = {
+        gold: 0,
+        level: 1,
+        exp: 0,
+        clickPower: 1,
+        autoGold: 0,
+        costClick: 10,
+        costFriend: 50,
+        costPC: 500,
+        costBuilding: 5000
+    };
+
+    let gameData = JSON.parse(JSON.stringify(defaultData));
+
+    // 진화 목록
+    const evolutions = [
+        { lv: 1, title: "응애 기훈", icon: "👶" },
+        { lv: 5, title: "초딩 기훈", icon: "🎒" },
+        { lv: 10, title: "중2병 기훈", icon: "🕶️" },
+        { lv: 20, title: "헬창 기훈", icon: "💪" },
+        { lv: 30, title: "취준생 기훈", icon: "👔" },
+        { lv: 50, title: "대통령 기훈", icon: "👑" },
+        { lv: 80, title: "건물주 기훈", icon: "🏙️" },
+        { lv: 100, title: "우주신 기훈", icon: "🌌" }
+    ];
+
+    // [중요] 게임 로드 (안전 장치 포함)
+    function loadGame() {
+        try {
+            const saved = localStorage.getItem('yangKihoonSave_v2');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // 저장된 데이터와 현재 데이터 구조 병합 (누락 방지)
+                gameData = { ...defaultData, ...parsed }; 
+                
+                // NaN(숫자 아님) 오류 방지 체크
+                if (isNaN(gameData.gold)) gameData.gold = 0;
+            }
+        } catch (e) {
+            console.error("세이브 로드 실패 (보안 설정 문제일 수 있음):", e);
+        }
+        updateUI();
+    }
+
+    function saveGame() {
+        try {
+            localStorage.setItem('yangKihoonSave_v2', JSON.stringify(gameData));
+        } catch (e) {
+            // 저장 실패해도 게임은 계속 진행됨
+        }
+    }
+
+    // 1초마다 자동 저장 및 자동 수입
+    setInterval(() => {
+        if (gameData.autoGold > 0) {
+            addGold(gameData.autoGold, false);
+        }
+        saveGame();
+    }, 1000);
+
+    // 골드 획득 로직
+    function addGold(amount, isClick) {
+        if(!amount || isNaN(amount)) amount = 0;
+        gameData.gold += amount;
+        
+        if(isClick) {
+            gameData.exp += 1;
+            checkLevelUp();
+        }
+        updateUI();
+    }
+
+    function checkLevelUp() {
+        const reqExp = gameData.level * 10;
+        if (gameData.exp >= reqExp) {
+            gameData.level++;
+            gameData.exp = 0;
+            gameData.clickPower += Math.floor(gameData.level / 2); 
+            // 레벨업 효과
+            showFloatingText("LEVEL UP!", "#2ecc71");
+        }
+        updateCharacter();
+    }
+
+    // 클릭 이벤트 리스너 등록
+    const clickZone = document.getElementById('click-zone');
+    clickZone.addEventListener('mousedown', handleInput); // 마우스
+    clickZone.addEventListener('touchstart', (e) => { // 모바일 터치
+        e.preventDefault(); // 더블탭 확대 방지
+        handleInput(e.touches[0]);
+    }, {passive: false});
+
+    function handleInput(e) {
+        addGold(gameData.clickPower, true);
+        
+        // 클릭 이펙트 위치 계산
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // 화면 밖으로 나가는 것 방지 보정
+        const rect = clickZone.getBoundingClientRect();
+        if(!x) { x = rect.left + rect.width/2; y = rect.top + rect.height/2; } // 좌표 없을 시 중앙
+
+        createEffect(x, y, `+${formatNumber(gameData.clickPower)}`);
+    }
+
+    // 시각 효과 생성
+    function createEffect(x, y, text) {
+        const effect = document.createElement('div');
+        effect.className = 'click-effect';
+        effect.innerText = text;
+        // 위치를 약간 랜덤하게
+        const randomX = (Math.random() - 0.5) * 40;
+        effect.style.left = `${x + randomX}px`;
+        effect.style.top = `${y - 20}px`;
+        document.body.appendChild(effect);
+
+        // 애니메이션 후 삭제
+        setTimeout(() => effect.remove(), 800);
+    }
+
+    function showFloatingText(text, color) {
+        const rect = clickZone.getBoundingClientRect();
+        const effect = document.createElement('div');
+        effect.className = 'click-effect';
+        effect.innerText = text;
+        effect.style.color = color || "#f1c40f";
+        effect.style.fontSize = "2rem";
+        effect.style.left = `${rect.left + rect.width/2 - 50}px`;
+        effect.style.top = `${rect.top + rect.height/2}px`;
+        document.body.appendChild(effect);
+        setTimeout(() => effect.remove(), 1500);
+    }
+
+    // 업그레이드 함수들
+    function upgradeClick() { buyUpgrade('costClick', 'clickPower', 1, 1.5); }
+    function hireFriend() { buyUpgrade('costFriend', 'autoGold', 1, 1.4); }
+    function buyPC() { buyUpgrade('costPC', 'autoGold', 10, 1.4); }
+    function buyBuilding() { buyUpgrade('costBuilding', 'autoGold', 100, 1.4); }
+
+    function buyUpgrade(costKey, statKey, statIncrease, multiplier) {
+        const cost = gameData[costKey];
+        if (gameData.gold >= cost) {
+            gameData.gold -= cost;
+            gameData[statKey] += statIncrease;
+            gameData[costKey] = Math.floor(cost * multiplier);
+            updateUI();
+        }
+    }
+
+    // UI 업데이트
+    function updateUI() {
+        // 숫자 표시
+        settext('gold-display', formatNumber(Math.floor(gameData.gold)) + " G");
+        settext('dps-display', formatNumber(gameData.autoGold) + " / sec");
+        settext('click-power-display', formatNumber(gameData.clickPower));
+        settext('level-num-display', gameData.level);
+        settext('level-display', "Lv. " + gameData.level);
+
+        // 버튼 업데이트
+        updateBtnState('btn-upgrade-click', 'cost-click', gameData.costClick);
+        updateBtnState('btn-hire-friend', 'cost-friend', gameData.costFriend);
+        updateBtnState('btn-buy-pc', 'cost-pc', gameData.costPC);
+        updateBtnState('btn-buy-building', 'cost-building', gameData.costBuilding);
+
+        // 경험치바
+        const reqExp = gameData.level * 10;
+        let per = (gameData.exp / reqExp) * 100;
+        if(per > 100) per = 100;
+        document.getElementById('exp-bar').style.width = per + "%";
+
+        updateCharacter();
+    }
+
+    function settext(id, text) {
+        const el = document.getElementById(id);
+        if(el) el.innerText = text;
+    }
+
+    function updateBtnState(btnId, costId, cost) {
+        settext(costId, formatNumber(cost) + " G");
+        const btn = document.getElementById(btnId);
+        if(btn) btn.disabled = (gameData.gold < cost);
+    }
+
+    function updateCharacter() {
+        let currentEvo = evolutions[0];
+        for (let evo of evolutions) {
+            if (gameData.level >= evo.lv) currentEvo = evo;
+        }
+        settext('avatar', currentEvo.icon);
+        settext('title-display', currentEvo.title);
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(2) + "M";
+        if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+        return Math.floor(num);
+    }
+
+    function resetGame() {
+        if(confirm("모든 데이터를 삭제하고 처음부터 시작할까요?")) {
+            localStorage.removeItem('yangKihoonSave_v2');
+            gameData = JSON.parse(JSON.stringify(defaultData));
+            updateUI();
+            location.reload();
+        }
+    }
+
+    // 게임 시작
+    loadGame();
+
+</script>
+</body>
+</html>
