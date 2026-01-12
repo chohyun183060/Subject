@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>노르드남</title>
+    <title>노르드남 Movie Log</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -18,6 +18,9 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
@@ -48,21 +51,13 @@
     </script>
     <style>
         body { background-color: #141414; color: #fff; overflow-x: hidden; }
-        
-        /* 스크롤바 커스텀 */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #141414; }
         ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #606060; }
-
         .iframe-container { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; background: #000; }
         .iframe-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        
-        /* 가로 스크롤 시 스크롤바 숨기기 (선택적) */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* 스무스 스크롤 */
         .scroll-smooth { scroll-behavior: smooth; }
     </style>
 </head>
@@ -77,9 +72,8 @@
         const IconPlay = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" /></svg>;
         const IconSearch = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
         const IconX = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>;
-        const IconEyeOff = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>;
-        const IconStats = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>;
         const IconEdit = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>;
+        const IconTrash = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>;
         const IconChevronLeft = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>;
         const IconChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>;
 
@@ -104,10 +98,9 @@
         };
 
         const ReviewRow = ({ review, onDelete, onEdit, onDetail }) => {
-            const { movie, isSpoiler } = review;
+            const { movie } = review;
             const { title, isTV } = getContentInfo(movie);
             const imageUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` : 'https://via.placeholder.com/100';
-            const [reveal, setReveal] = useState(false);
 
             return (
                 <div className="flex gap-4 p-4 bg-[#181818] rounded hover:bg-[#222] transition-colors group relative overflow-hidden border border-transparent hover:border-gray-800">
@@ -130,18 +123,9 @@
                             {[1,2,3,4,5].map(s => <IconStar key={s} className={`w-4 h-4 ${s <= review.rating ? 'text-netflix-red' : 'text-gray-600'}`} />)}
                         </div>
                         
-                        {isSpoiler && !reveal ? (
-                            <div className="relative mt-1 p-2 bg-[#2a2a2a] rounded border border-red-900/50 cursor-pointer group/spoiler" onClick={() => setReveal(true)}>
-                                <div className="flex items-center gap-2 text-netflix-red text-sm font-bold">
-                                    <IconEyeOff className="w-4 h-4" /> 스포일러 포함
-                                </div>
-                                <p className="text-gray-500 text-xs mt-1">클릭하여 내용을 확인하세요.</p>
-                            </div>
-                        ) : (
-                            <p className="text-gray-300 text-sm line-clamp-3 animate-fade-in cursor-pointer" onClick={() => isSpoiler && setReveal(false)}>
-                                {review.content}
-                            </p>
-                        )}
+                        <p className="text-gray-300 text-sm line-clamp-3">
+                            {review.content}
+                        </p>
                     </div>
                 </div>
             );
@@ -160,8 +144,6 @@
                         {videoKey ? (
                             <div className="space-y-4">
                                 <div className="iframe-container bg-black rounded-lg overflow-hidden shadow-2xl border border-gray-800">
-                                    {/* FIXED: Switched to youtube-nocookie.com to avoid blocking on some networks/browsers */}
-                                    {/* Added playsinline for better mobile support */}
                                     <iframe 
                                         src={`https://www.youtube-nocookie.com/embed/${videoKey}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1`} 
                                         title="Trailer" 
@@ -195,58 +177,6 @@
             );
         };
 
-        const StatsModal = ({ isOpen, onClose, reviews, genresMap }) => {
-            if (!isOpen) return null;
-            const total = reviews.length;
-            const avgRating = total > 0 ? (reviews.reduce((acc, r) => acc + r.rating, 0) / total).toFixed(1) : 0;
-            const genreCounts = reviews.reduce((acc, r) => {
-                const id = r.movie.genre_ids?.[0];
-                const name = genresMap[id] || '기타';
-                acc[name] = (acc[name] || 0) + 1;
-                return acc;
-            }, {});
-            const sortedGenres = Object.entries(genreCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
-
-            return (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in" onClick={onClose}>
-                    <div className="bg-[#181818] w-full max-w-2xl rounded-xl p-8 border border-gray-800 animate-slide-up relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={onClose} className="absolute top-4 right-4 bg-gray-800 rounded-full p-2"><IconX className="w-5 h-5" /></button>
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="w-16 h-16 rounded bg-gradient-to-br from-netflix-red to-purple-800 flex items-center justify-center text-2xl font-bold">H</div>
-                            <div>
-                                <h2 className="text-2xl font-bold text-white">현빈님의 취향 분석</h2>
-                                <p className="text-gray-400 text-sm">총 {total}개의 작품을 기록하셨네요!</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="bg-[#222] p-5 rounded-lg">
-                                <h3 className="text-gray-400 text-sm font-bold mb-4 uppercase">평균 평점</h3>
-                                <div className="flex items-end gap-2">
-                                    <span className="text-5xl font-bold text-netflix-red">{avgRating}</span>
-                                    <span className="text-xl text-gray-500 mb-1">/ 5.0</span>
-                                </div>
-                                <div className="w-full bg-gray-700 h-2 rounded-full mt-4 overflow-hidden">
-                                    <div className="bg-netflix-red h-full" style={{width: `${(avgRating/5)*100}%`}}></div>
-                                </div>
-                            </div>
-                            <div className="bg-[#222] p-5 rounded-lg">
-                                <h3 className="text-gray-400 text-sm font-bold mb-4 uppercase">선호 장르 TOP 5</h3>
-                                <div className="space-y-3">
-                                    {sortedGenres.map(([genre, count]) => (
-                                        <div key={genre}>
-                                            <div className="flex justify-between text-xs mb-1"><span>{genre}</span><span className="text-gray-400">{count}편</span></div>
-                                            <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden"><div className="bg-blue-500 h-full" style={{width: `${(count/total)*100}%`}}></div></div>
-                                        </div>
-                                    ))}
-                                    {sortedGenres.length === 0 && <p className="text-gray-500 text-xs text-center py-4">아직 데이터가 충분하지 않습니다.</p>}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
         const App = () => {
             const [apiKey] = useState(() => localStorage.getItem('tmdb_api_key') || '732bf2067083847338a4255754bbefea');
             const [searchTerm, setSearchTerm] = useState('');
@@ -255,7 +185,6 @@
             const [genresMap, setGenresMap] = useState({});
             const [nowPlaying, setNowPlaying] = useState([]);
             
-            // ✨ 스크롤 참조 추가
             const scrollRef = useRef(null);
 
             const [detailItem, setDetailItem] = useState(null);
@@ -263,15 +192,13 @@
             const [isReviewOpen, setIsReviewOpen] = useState(false);
             const [editingReview, setEditingReview] = useState(null);
             
-            const [isStatsOpen, setIsStatsOpen] = useState(false);
             const [isTrailerOpen, setIsTrailerOpen] = useState(false);
             const [trailerKey, setTrailerKey] = useState(null);
 
-            const [reviewForm, setReviewForm] = useState({ rating: 5, content: '', isSpoiler: false, item: null });
+            const [reviewForm, setReviewForm] = useState({ rating: 5, content: '', item: null });
 
             useEffect(() => localStorage.setItem('my_movie_reviews', JSON.stringify(reviews)), [reviews]);
             
-            // 초기 데이터 로딩
             useEffect(() => {
                 fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${apiKey}&language=ko-KR`)
                     .then(r => r.json()).then(d => {
@@ -287,11 +214,9 @@
                     .catch(err => console.error("최신 영화 로딩 실패:", err));
             }, []);
 
-            // ✨ 스크롤 핸들러 함수
             const scroll = (direction) => {
                 if (scrollRef.current) {
                     const { current } = scrollRef;
-                    // 화면 절반만큼 이동
                     const scrollAmount = direction === 'left' ? -window.innerWidth / 2 : window.innerWidth / 2;
                     current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
                 }
@@ -350,7 +275,6 @@
                     item: item,
                     rating: review ? review.rating : 5,
                     content: review ? review.content : '',
-                    isSpoiler: review ? (review.isSpoiler || false) : false
                 });
                 setEditingReview(review);
                 setIsReviewOpen(true);
@@ -363,7 +287,6 @@
                     movie: reviewForm.item,
                     rating: reviewForm.rating,
                     content: reviewForm.content,
-                    isSpoiler: reviewForm.isSpoiler,
                     date: new Date().toISOString()
                 };
 
@@ -395,14 +318,12 @@
                                         </button>
                                     )}
                                 </div>
-                               
                             </div>
                         </div>
                     </header>
 
                     <main className="pt-28 px-4 md:px-12 max-w-[1600px] mx-auto space-y-12">
                         
-                        {/* 1. 검색 결과 섹션 (검색어가 있을 때만 표시) */}
                         {searchTerm && (
                             <section>
                                 <h2 className="text-xl font-bold text-gray-400 mb-4 flex items-center gap-2">
@@ -435,7 +356,6 @@
                             </section>
                         )}
 
-                        {/* 2. ✨ 최신 개봉작 섹션 (검색어가 없을 때만 표시) */}
                         {!searchTerm && nowPlaying.length > 0 && (
                             <section>
                                 <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
@@ -444,7 +364,6 @@
                                 <p className="text-gray-400 text-sm mb-4">현재 극장에서 상영 중인 따끈따끈한 영화들입니다.</p>
                                 
                                 <div className="relative group/slider">
-                                    {/* ✨ 왼쪽 스크롤 버튼 */}
                                     <button 
                                         onClick={() => scroll('left')} 
                                         className="absolute left-0 top-0 bottom-4 z-20 bg-black/50 hover:bg-black/70 w-12 flex items-center justify-center opacity-0 group-hover/slider:opacity-100 transition-opacity duration-300 backdrop-blur-sm cursor-pointer rounded-r-md"
@@ -452,7 +371,6 @@
                                         <IconChevronLeft className="w-10 h-10 text-white" />
                                     </button>
 
-                                    {/* 스크롤 영역 - ref 연결 */}
                                     <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x p-1 scroll-smooth">
                                         {nowPlaying.map(item => (
                                             <div key={item.id} 
@@ -473,7 +391,6 @@
                                         ))}
                                     </div>
 
-                                    {/* ✨ 오른쪽 스크롤 버튼 */}
                                     <button 
                                         onClick={() => scroll('right')} 
                                         className="absolute right-0 top-0 bottom-4 z-20 bg-black/50 hover:bg-black/70 w-12 flex items-center justify-center opacity-0 group-hover/slider:opacity-100 transition-opacity duration-300 backdrop-blur-sm cursor-pointer rounded-l-md"
@@ -484,7 +401,6 @@
                             </section>
                         )}
 
-                        {/* 3. 내 리뷰 섹션 */}
                         {!searchTerm && (
                             <section>
                                 {reviews.length > 0 ? (
@@ -492,7 +408,6 @@
                                         MY LOG <span className="text-gray-500 text-base font-normal">({reviews.length})</span>
                                     </h2>
                                 ) : (
-                                    // 리뷰도 없고 검색도 안 했을 때 (초기 상태)
                                     nowPlaying.length === 0 && (
                                         <div className="h-[40vh] flex flex-col items-center justify-center text-center space-y-4 opacity-40">
                                             <h2 className="text-4xl font-brand">START YOUR LOG</h2>
@@ -514,7 +429,6 @@
                         )}
                     </main>
 
-                    {/* --- 아래는 기존 모달과 동일 --- */}
                     {isDetailOpen && detailItem && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setIsDetailOpen(false)}>
                             <div className="bg-[#181818] w-full max-w-4xl rounded-lg shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto animate-slide-up relative" onClick={e => e.stopPropagation()}>
@@ -565,17 +479,11 @@
                                             placeholder="이 작품, 어떠셨나요? 감상평을 남겨주세요."
                                         />
                                     </div>
-                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setReviewForm({...reviewForm, isSpoiler: !reviewForm.isSpoiler})}>
-                                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${reviewForm.isSpoiler ? 'bg-netflix-red border-netflix-red' : 'border-gray-500'}`}>
-                                            {reviewForm.isSpoiler && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                    </div>
                                     <Button onClick={saveReview} variant="red" className="w-full py-3 text-lg">저장</Button>
-                                    <span className={`text-sm ${reviewForm.isSpoiler ? 'text-netflix-red font-bold' : 'text-gray-400'}`}>스포일러가 포함되어 있나요?</span>
                                 </div>
                             </div>
                         </div>
                     )}
-                    <StatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} reviews={reviews} genresMap={genresMap} />
                     <TrailerModal isOpen={isTrailerOpen} onClose={() => setIsTrailerOpen(false)} videoKey={trailerKey} />
                 </div>
             );
@@ -585,11 +493,4 @@
         root.render(<App />);
     </script>
 </body>
-
 </html>
-
-
-
-
-
-
