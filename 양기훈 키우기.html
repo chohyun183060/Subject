@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>레슬러 양기훈 키우기 V2 : 챔피언 로드</title>
+    <title>레슬러 양기훈 키우기 V3 : 챔피언 로드</title>
     <style>
         /* CSS 스타일 */
         :root {
@@ -37,7 +37,7 @@
             max-width: 480px;
             background-color: var(--secondary);
             border-radius: 15px;
-            box-shadow: 0 0 50px rgba(0,0,0,0.9); /* 그림자 강화 */
+            box-shadow: 0 0 50px rgba(0,0,0,0.9);
             display: flex;
             flex-direction: column;
             height: 98vh;
@@ -60,7 +60,7 @@
             background: #c23616; color: white; border: none; font-size: 0.7rem; padding: 4px 8px; border-radius: 5px; cursor: pointer;
         }
 
-        /* [핵심 변경] 배틀 아레나 (레슬링 링 배경) */
+        /* 배틀 아레나 (레슬링 링 배경) */
         .arena-section {
             flex-grow: 1;
             position: relative;
@@ -68,50 +68,45 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* 어두운 경기장 배경과 스포트라이트 */
             background: radial-gradient(circle at center top, #57606f 0%, #000000 80%);
             cursor: pointer;
             overflow: hidden;
-            perspective: 1000px; /* 3D 효과를 위한 원근감 */
+            perspective: 1000px;
         }
 
-        /* 링 바닥 (Mat) 그리기 */
+        /* 링 바닥 */
         .arena-section::before {
             content: '';
             position: absolute;
             bottom: -50px;
             width: 120%;
             height: 70%;
-            /* 캔버스 질감의 링 바닥 */
             background: 
                 linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px),
                 linear-gradient(to bottom, var(--ring-mat), #7f8c8d);
             background-size: 20px 20px, 20px 20px, 100% 100%;
-            /* 3D로 기울이기 */
             transform: rotateX(60deg);
             border-top: 5px solid #7f8c8d;
             box-shadow: 0 -20px 50px rgba(0,0,0,0.5) inset;
             z-index: 1;
         }
 
-        /* 링 로프 그리기 */
+        /* 링 로프 */
         .arena-section::after {
             content: '';
             position: absolute;
             top: 30%;
             width: 100%;
             height: 30%;
-            /* 3개의 로프 선 그리기 */
             background: 
                 linear-gradient(to bottom, transparent 10%, var(--ring-rope) 10%, var(--ring-rope) 12%, transparent 12%),
                 linear-gradient(to bottom, transparent 48%, var(--ring-rope) 48%, var(--ring-rope) 50%, transparent 50%),
                 linear-gradient(to bottom, transparent 88%, var(--ring-rope) 88%, var(--ring-rope) 90%, transparent 90%);
-            z-index: 0; /* 캐릭터 뒤로 보냄 */
+            z-index: 0;
             opacity: 0.7;
         }
         
-        /* 캐릭터 및 요소들을 링 위로 올리기 */
         .fighters-box, .boss-hp-container, .skill-bar, .damage-text {
             z-index: 10;
             position: relative;
@@ -122,23 +117,22 @@
             justify-content: space-around;
             width: 100%;
             align-items: flex-end;
-            padding-bottom: 40px; /* 링 위에 서있는 느낌을 위해 위치 조정 */
+            padding-bottom: 40px;
             pointer-events: none;
         }
         .fighter { display: flex; flex-direction: column; align-items: center; transition: transform 0.1s; }
         
-        /* 플레이어 아바타 이미지 스타일 */
+        /* 이미지 스타일 */
         .kihoon-avatar { 
-            width: 120px;
+            width: 140px; /* 크기 조정 */
             height: auto;
-            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); /* 그림자 추가 */
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.6));
             transition: transform 0.1s;
-            border-radius: 10px;
         }
         
         .boss-avatar { font-size: 5rem; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); transition: transform 0.1s;}
         
-        .attack-anim { transform: translateX(30px) scale(1.1) rotate(-5deg); } /* 타격감 강화 */
+        .attack-anim { transform: translateX(30px) scale(1.1) rotate(-5deg); }
         .hit-anim { transform: translateX(10px) rotate(10deg); filter: brightness(2) sepia(1) red; }
 
         /* 보스 체력바 */
@@ -152,7 +146,7 @@
         .hp-bar-fill { width: 100%; height: 100%; background: var(--hp-bar); transition: width 0.2s linear; }
         .hp-text-overlay { position: absolute; width: 100%; text-align: center; top:0; line-height: 20px; font-size: 0.8rem; text-shadow: 1px 1px 1px #000; font-weight: bold;}
 
-        /* 스킬 버튼 영역 */
+        /* 스킬 버튼 */
         .skill-bar {
             position: absolute;
             bottom: 10px;
@@ -210,7 +204,6 @@
             background: rgba(0,0,0,0.3);
             padding: 5px;
         }
-        /* 스크롤바 디자인 */
         .shop-container::-webkit-scrollbar { width: 8px; }
         .shop-container::-webkit-scrollbar-thumb { background: #57606f; border-radius: 4px; }
         .shop-container::-webkit-scrollbar-track { background: #2f3542; }
@@ -260,7 +253,8 @@
 
         <div class="fighters-box">
             <div class="fighter">
-                <img src="image_0.png" alt="플레이어 아바타" class="kihoon-avatar" id="player-avatar">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Person%20Wrestling%20Medium%20Light%20Skin%20Tone.png" 
+                     alt="플레이어" class="kihoon-avatar" id="player-avatar">
                 <div style="font-size: 0.8rem; text-shadow: 1px 1px 2px black; margin-top:5px;" id="player-title">초보 레슬러</div>
             </div>
             <div class="fighter">
@@ -300,28 +294,23 @@
 </div>
 
 <script>
-    /* ========== 게임 데이터 ========== */
+    /* ========== 게임 로직 (수정 없음) ========== */
     const defaultData = {
         money: 0,
         clickDmg: 1,
         autoDmg: 0,
-        incomeMult: 1, // 수입 배율
+        incomeMult: 1, 
         stage: 1,
         bossHp: 50,
-        
-        // 레벨들
         trainLv: [0,0,0,0,0,0],
         teamLv: [0,0,0,0,0],
         bizLv: [0,0,0,0]
     };
 
     let game = JSON.parse(JSON.stringify(defaultData));
-    
-    // 스킬 상태
     let skillActive = false;
     let skillMultiplier = 1;
 
-    /* ========== 설정 데이터 ========== */
     const bosses = [
         {name: "샌드백", hp: 50, icon: "🥊"},
         {name: "체육관 관장", hp: 500, icon: "🦍"},
@@ -333,7 +322,7 @@
         {name: "외계인", hp: 50000000, icon: "👽"}
     ];
 
-    const trainingList = [ // 클릭 공격력
+    const trainingList = [ 
         { name: "팔굽혀펴기", cost: 10, val: 1, desc: "기본 근력 단련" },
         { name: "벤치프레스", cost: 150, val: 10, desc: "가슴 근육 폭발" },
         { name: "드롭킥 연습", cost: 1000, val: 50, desc: "찰진 타격감" },
@@ -342,7 +331,7 @@
         { name: "챔피언의 주먹", cost: 5000000, val: 10000, desc: "전설의 핵주먹" }
     ];
 
-    const teamList = [ // 자동 공격력 (DPS)
+    const teamList = [ 
         { name: "스파링 파트너", cost: 100, val: 5, desc: "옆에서 잽을 날려줌" },
         { name: "아마추어 용병", cost: 1000, val: 30, desc: "돈 받고 싸워줌" },
         { name: "태그팀 파트너", cost: 15000, val: 200, desc: "든든한 아군" },
@@ -350,14 +339,12 @@
         { name: "클론 양기훈", cost: 3000000, val: 5000, desc: "또 다른 나" }
     ];
 
-    const bizList = [ // 돈 획득량
+    const bizList = [ 
         { name: "전단지 알바", cost: 50, val: 1, desc: "클릭 수입 +1" },
         { name: "유튜브 방송", cost: 500, val: 5, desc: "클릭 수입 +5" },
         { name: "체육관 오픈", cost: 10000, val: 50, desc: "클릭 수입 +50" },
         { name: "프랜차이즈", cost: 500000, val: 500, desc: "클릭 수입 +500" }
     ];
-
-    /* ========== 엔진 로직 ========== */
 
     function init() {
         if(localStorage.getItem('kihoonV3_Design')) {
@@ -368,43 +355,33 @@
         gameLoop();
     }
 
-    // 0.1초마다 실행되는 루프 (자동 공격 및 UI 갱신)
     function gameLoop() {
         setInterval(() => {
-            // 자동 공격 (DPS)
             if (game.autoDmg > 0) {
-                const dmgPerTick = game.autoDmg / 10; // 0.1초당 데미지
+                const dmgPerTick = game.autoDmg / 10; 
                 damageBoss(dmgPerTick, false); 
             }
             saveData();
         }, 100);
     }
 
-    // 클릭/터치 처리
     const clickZone = document.getElementById('click-zone');
     clickZone.addEventListener('mousedown', (e) => handleHit(e));
     clickZone.addEventListener('touchstart', (e) => { e.preventDefault(); handleHit(e.touches[0]); }, {passive:false});
 
     function handleHit(e) {
-        // 돈 획득
-        game.money += (game.incomeMult + (game.clickDmg * 0.05)); // 밸런스 조절
+        game.money += (game.incomeMult + (game.clickDmg * 0.05)); 
         
-        // 보스 공격
         let finalDmg = game.clickDmg * skillMultiplier;
-        
-        // 크리티컬 확률 (10%)
         let isCrit = Math.random() < 0.1;
         if(isCrit) finalDmg *= 2;
 
         damageBoss(finalDmg, true);
-
-        // 시각 효과
         showEffect(e.clientX, e.clientY, formatNum(Math.floor(finalDmg)), isCrit || skillActive);
         
-        // 아바타 애니메이션
         const avatar = document.getElementById('player-avatar');
         avatar.classList.remove('attack-anim');
-        void avatar.offsetWidth; // 리플로우 강제
+        void avatar.offsetWidth; 
         avatar.classList.add('attack-anim');
 
         updateUI();
@@ -422,13 +399,11 @@
     }
 
     function bossDefeated() {
-        const reward = getBossMaxHp(game.stage) * 0.25; // 보상 상향
+        const reward = getBossMaxHp(game.stage) * 0.25; 
         game.money += reward;
-        // 다음 스테이지
         game.stage++;
         game.bossHp = getBossMaxHp(game.stage);
         
-        // 알림 이펙트
         const rect = clickZone.getBoundingClientRect();
         showEffect(rect.left + rect.width/2, rect.top + rect.height/2 - 50, `👑 STAGE CLEAR!`, true);
         setTimeout(() => {
@@ -436,26 +411,21 @@
         }, 200);
     }
 
-    // 스킬 시스템
     window.useSkill = function(type) {
         const btn = document.getElementById('btn-skill-1');
         if(btn.classList.contains('cooldown')) return;
 
-        // 스킬 발동
         skillActive = true;
-        skillMultiplier = 2; // 공격력 2배
+        skillMultiplier = 2; 
         btn.classList.add('skill-active');
         btn.innerText = "🤬 폭주 중! (데미지 2배)";
 
-        // 지속시간 10초
         setTimeout(() => {
             skillActive = false;
             skillMultiplier = 1;
             btn.classList.remove('skill-active');
             btn.classList.add('cooldown');
             btn.innerText = "😓 지침 (쿨타임...)";
-            
-            // 쿨타임 5초
             setTimeout(() => {
                 btn.classList.remove('cooldown');
                 btn.innerText = "🔥 폭주 (공격 2배)";
@@ -463,10 +433,8 @@
         }, 10000);
     }
 
-    // 상점 구매 로직
     function buyUpgrade(type, idx) {
         let list, lvArr, costFactor, statKey;
-        
         if(type === 'train') {
             list = trainingList; lvArr = game.trainLv; costFactor = 1.5; statKey = 'clickDmg';
         } else if(type === 'team') {
@@ -483,13 +451,11 @@
             game.money -= cost;
             lvArr[idx]++;
             game[statKey] += list[idx].val;
-            
             updateUI();
-            renderShops(); // 가격 갱신
+            renderShops(); 
         }
     }
 
-    // UI 렌더링
     function renderShops() {
         renderList('tab-train', trainingList, game.trainLv, 'train');
         renderList('tab-team', teamList, game.teamLv, 'team');
@@ -537,7 +503,6 @@
         document.getElementById('hp-bar').style.width = hpPer + "%";
         document.getElementById('hp-text').innerText = `${formatNum(Math.ceil(game.bossHp))} / ${formatNum(maxHp)}`;
 
-        // 칭호 업데이트
         let title = "초보 레슬러";
         if(game.stage > 5) title = "아마추어 에이스";
         if(game.stage > 15) title = "프로 레슬러";
@@ -546,11 +511,10 @@
         document.getElementById('player-title').innerText = title;
     }
 
-    // 헬퍼 함수
     function getBossMaxHp(stage) {
         const base = bosses[(stage-1) % bosses.length].hp;
         const scale = Math.floor((stage-1) / bosses.length);
-        return Math.floor(base * Math.pow(2.2, scale)); // 난이도 조절
+        return Math.floor(base * Math.pow(2.2, scale)); 
     }
 
     function formatNum(num) {
@@ -564,7 +528,7 @@
         const el = document.createElement('div');
         el.className = 'damage-text';
         el.innerText = text;
-        el.style.left = (x - 30 + (Math.random()*20-10)) + "px"; // 약간 랜덤 위치
+        el.style.left = (x - 30 + (Math.random()*20-10)) + "px"; 
         el.style.top = (y - 50) + "px";
         if(isCrit) {
             el.style.color = "#ff4757";
@@ -585,7 +549,6 @@
         } 
     }
     
-    // 탭 전환
     window.switchTab = function(id) {
         document.querySelectorAll('.shop-container').forEach(e => e.style.display='none');
         document.getElementById(id).style.display='block';
@@ -595,7 +558,6 @@
     }
 
     init();
-
 </script>
 </body>
 </html>
